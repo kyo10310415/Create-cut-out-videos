@@ -44,58 +44,60 @@
 
 1. Renderダッシュボードにログイン
 2. "New +" ボタンをクリック → "Web Service"を選択
-3. GitHubリポジトリを接続
+3. GitHubリポジトリを接続（**Create-cut-out-videos**）
 4. 以下の設定を入力:
 
 | 項目 | 値 |
 |-----|---|
-| **Name** | youtube-clipper-dashboard |
-| **Region** | Oregon (または最寄りのリージョン) |
+| **Name** | youtube-clipper |
+| **Region** | Oregon (または Tokyo) |
 | **Branch** | main |
-| **Runtime** | Python 3 |
-| **Build Command** | `apt-get update && apt-get install -y ffmpeg && pip install --upgrade pip && pip install -r requirements.txt` |
-| **Start Command** | `python app.py` |
-| **Plan** | Starter ($7/月) または Standard ($25/月) |
+| **Environment** | **Docker** ⚠️ 重要！ |
+| **Dockerfile Path** | `./Dockerfile` |
+| **Docker Build Context Directory** | `.` |
+| **Instance Type** | Starter ($7) または Standard ($25) 推奨 |
 
-5. 環境変数を追加:
+**注意**: Pythonではなく**Docker**を選択してください。FFmpegをインストールするために必要です。
 
-| Key | Value |
-|-----|-------|
-| `YOUTUBE_API_KEY` | あなたのYouTube APIキー |
-| `YOUTUBE_CLIENT_ID` | YouTube Client ID（OAuth用） |
-| `YOUTUBE_CLIENT_SECRET` | YouTube Client Secret（OAuth用） |
-| `TARGET_CHANNEL_IDS` | `UCrzO_hsFW8vLLy8xFBADfqQ,UC3NYX0zN6GySr_hzJHU4tog` |
-| `PORT` | `10000` |
-| `CLIP_DURATION_TARGET` | `600` |
-| `MIN_HIGHLIGHT_SCORE` | `0.7` |
-| `JUMP_CUT_ENABLED` | `true` |
-| `SUBTITLE_FONT_SIZE` | `48` |
-| `SUBTITLE_COLOR` | `white` |
-| `SUBTITLE_OUTLINE_COLOR` | `black` |
-| `SUBTITLE_OUTLINE_WIDTH` | `3` |
+5. 環境変数を追加（**Environment Variables**セクション）:
 
-6. "Create Web Service"をクリック
+| Key | Value | 説明 |
+|-----|-------|------|
+| `YOUTUBE_API_KEY` | あなたのAPIキー | YouTube Data API |
+| `TARGET_CHANNEL_IDS` | `UCrzO_hsFW8vLLy8xFBADfqQ,UC3NYX0zN6GySr_hzJHU4tog` | 対象チャンネル |
+| `PORT` | `10000` | ポート番号 |
+| `CLIP_DURATION_TARGET` | `600` | 目標動画長（秒） |
+| `MIN_HIGHLIGHT_SCORE` | `0.7` | 見どころ閾値 |
+| `JUMP_CUT_ENABLED` | `true` | ジャンプカット |
+| `SUBTITLE_FONT_SIZE` | `48` | 字幕サイズ |
+| `SUBTITLE_COLOR` | `white` | 字幕色 |
+| `SUBTITLE_OUTLINE_COLOR` | `black` | 縁取り色 |
+| `SUBTITLE_OUTLINE_WIDTH` | `3` | 縁取り幅 |
+
+6. **"Create Web Service"** をクリック
+7. デプロイが完了するまで待つ（5-10分）
 
 #### B. Cron Job（定期実行）の作成
 
+⚠️ **注意**: Cron JobもDockerを使用する必要があります。
+
 1. "New +" ボタンをクリック → "Cron Job"を選択
-2. GitHubリポジトリを接続
+2. GitHubリポジトリを接続（**Create-cut-out-videos**）
 3. 以下の設定を入力:
 
 | 項目 | 値 |
 |-----|---|
-| **Name** | youtube-clipper-daily |
+| **Name** | youtube-clipper-cron |
 | **Region** | Oregon |
 | **Branch** | main |
-| **Runtime** | Python 3 |
-| **Build Command** | `apt-get update && apt-get install -y ffmpeg && pip install --upgrade pip && pip install -r requirements.txt` |
-| **Command** | `python run_processor.py` |
-| **Schedule** | `0 2 * * *` (毎日午前2時) |
-| **Plan** | Starter ($7/月) |
+| **Environment** | **Docker** ⚠️ 重要！ |
+| **Dockerfile Path** | `./Dockerfile` |
+| **Docker Command** | `python run_processor.py` |
+| **Schedule** | `0 2 * * *` (毎日午前2時) または `0 2 * * 0` (週1回日曜) |
+| **Instance Type** | Starter ($7) |
 
 4. 同じ環境変数を追加（Webサービスと同じ）
-
-5. "Create Cron Job"をクリック
+5. **"Create Cron Job"** をクリック
 
 ### ステップ3: デプロイの確認
 
@@ -117,13 +119,20 @@
 
 ### ビルドエラー
 
-**問題**: FFmpegのインストールが失敗する
+**問題**: `apt-get`や`ffmpeg`のインストールエラー
 
 **解決策**:
-```bash
-# Build Commandを以下に変更:
-apt-get update && apt-get install -y ffmpeg libavcodec-extra && pip install --upgrade pip && pip install -r requirements.txt
-```
+- ✅ 環境を**Docker**に変更（Pythonではない）
+- ✅ Dockerfileが正しく設定されていることを確認
+- ✅ render.yamlを使わず、Renderの管理画面から手動で設定
+
+**手動設定手順**:
+1. Renderダッシュボードでサービスを削除
+2. 新しいサービスを作成
+3. **Environment**で**Docker**を選択
+4. Dockerfile Pathに`./Dockerfile`を指定
+5. 環境変数を設定
+6. デプロイ
 
 ### メモリエラー
 

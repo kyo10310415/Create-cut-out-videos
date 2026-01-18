@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.egg-info/
+
+# Environment
+.env
+.env.local
+token.pickle
+
+# Downloads and output
+downloads/
+temp/
+output/
+*.mp4
+*.webm
+*.mkv
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Documentation (optional, keep if needed)
+# README.md
+# DEPLOYMENT.md
+# QUICKSTART.md
