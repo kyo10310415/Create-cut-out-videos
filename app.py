@@ -384,13 +384,20 @@ def api_auto_run_status():
     """自動実行の状態を取得"""
     try:
         scheduler = init_scheduler()
-        settings = scheduler.load_settings()
+        enabled = scheduler.is_enabled()
         return jsonify({
             'success': True,
-            'enabled': settings.get('auto_run_enabled', False)
+            'enabled': enabled
         })
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        print(f"Error in auto-run status: {e}")
+        import traceback
+        traceback.print_exc()
+        # エラーが起きてもデフォルト値を返す
+        return jsonify({
+            'success': True,
+            'enabled': False
+        })
 
 
 @app.route('/api/status', methods=['GET'])

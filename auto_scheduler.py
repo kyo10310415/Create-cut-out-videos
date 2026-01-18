@@ -83,6 +83,25 @@ class AutoScheduler:
         """自動実行が有効かどうか"""
         return self._load_auto_run_setting()
     
+    def load_settings(self) -> dict:
+        """
+        設定を読み込み（app.py互換性のため）
+        
+        Returns:
+            設定辞書
+        """
+        return {
+            'auto_run_enabled': self.is_enabled()
+        }
+    
+    def enable(self) -> bool:
+        """自動実行を有効化"""
+        return self.set_auto_run(True)
+    
+    def disable(self) -> bool:
+        """自動実行を無効化"""
+        return self.set_auto_run(False)
+    
     def get_yesterday_livestreams(self, channel_id: str) -> list:
         """
         前日の配信を取得
