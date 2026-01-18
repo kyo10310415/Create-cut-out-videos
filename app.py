@@ -271,6 +271,31 @@ HTML_TEMPLATE = """
         </div>
         
         <div class="card">
+            <h2>🧪 テストモード</h2>
+            <p style="margin-bottom: 15px;">1本の動画だけを処理してシステムをテストできます。</p>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">動画IDを入力:</label>
+                <input 
+                    type="text" 
+                    id="test-video-id" 
+                    placeholder="例: dQw4w9WgXcQ" 
+                    style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em;"
+                />
+            </div>
+            
+            <button class="btn" onclick="testSingleVideo()" style="width: 100%; margin-bottom: 10px;">
+                🎬 この動画を処理
+            </button>
+            
+            <button class="btn" onclick="showRecentVideos()" style="width: 100%; background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);">
+                📋 最近の配信から選択
+            </button>
+            
+            <div id="recent-videos-list" style="margin-top: 15px; display: none;"></div>
+        </div>
+        
+        <div class="card">
             <h2>⚙️ 設定</h2>
             <table class="config-table">
                 <tr>
@@ -415,6 +440,77 @@ HTML_TEMPLATE = """
                         statusEl.innerHTML = '<span style="color: #fa709a; font-weight: bold;">✗ 無効</span>';
                     }
                 });
+        }
+        
+        function testSingleVideo() {
+            const videoId = document.getElementById('test-video-id').value.trim();
+            
+            if (!videoId) {
+                alert('動画IDを入力してください');
+                return;
+            }
+            
+            if (confirm(`動画ID: ${videoId}\nこの動画を処理しますか？テストのため時間がかかります。`)) {
+                showLoading();
+                fetch('/api/test-video', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({video_id: videoId})
+                })
+                .then(res => res.json())
+                .then(data => {
+                    hideLoading();
+                    if (data.success) {
+                        alert('✅ テスト処理成功!\n出力: ' + data.result.output_file);
+                        updateLog(JSON.stringify(data.result, null, 2));
+                    } else {
+                        alert('❌ テスト処理失敗\nエラー: ' + data.error);
+                    }
+                })
+                .catch(err => {
+                    hideLoading();
+                    alert('エラー: ' + err);
+                });
+            }
+        }
+        
+        function showRecentVideos() {
+            const listEl = document.getElementById('recent-videos-list');
+            listEl.innerHTML = '<p>読み込み中...</p>';
+            listEl.style.display = 'block';
+            
+            fetch('/api/recent-videos')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.videos.length === 0) {
+                        listEl.innerHTML = '<p>最近の配信が見つかりませんでした</p>';
+                        return;
+                    }
+                    
+                    let html = '<div style="max-height: 300px; overflow-y: auto;">';
+                    html += '<p style="font-weight: bold; margin-bottom: 10px;">最近の配信 (' + data.videos.length + '本):</p>';
+                    
+                    data.videos.forEach((video, index) => {
+                        html += '<div style="background: #f5f5f5; padding: 10px; margin-bottom: 10px; border-radius: 5px;">';
+                        html += '<div style="font-weight: bold;">' + (index + 1) + '. ' + video.title + '</div>';
+                        html += '<div style="font-size: 0.9em; color: #666; margin: 5px 0;">ID: ' + video.id + '</div>';
+                        html += '<div style="font-size: 0.9em; color: #666; margin-bottom: 5px;">公開: ' + video.published_at.substring(0, 10) + '</div>';
+                        html += '<button class="btn" onclick="selectVideo(\'' + video.id + '\')" style="font-size: 0.9em; padding: 5px 15px;">この動画を選択</button>';
+                        html += '</div>';
+                    });
+                    
+                    html += '</div>';
+                    listEl.innerHTML = html;
+                })
+                .catch(err => {
+                    listEl.innerHTML = '<p>エラー: ' + err + '</p>';
+                });
+        }
+        
+        function selectVideo(videoId) {
+            document.getElementById('test-video-id').value = videoId;
+            document.getElementById('recent-videos-list').style.display = 'none';
+            alert('動画ID: ' + videoId + '\n選択されました。「この動画を処理」ボタンをクリックしてください。');
         }
         
         function updateLog(message) {
@@ -572,6 +668,61 @@ def process_yesterday():
         'message': f'前日配信処理完了: 成功 {summary["total_success"]}本, 失敗 {summary["total_failed"]}本',
         'summary': summary
     })
+
+
+@app.route('/api/test-video', methods=['POST'])
+def test_video():
+    """テスト: 1本の動画を処理"""
+    data = request.json
+    video_id = data.get('video_id')
+    
+    if not video_id:
+        return jsonify({'error': 'video_idが必要です'}), 400
+    
+    p = init_pipeline()
+    result = p.process_video(video_id)
+    
+    if result.get('success'):
+        return jsonify({
+            'success': True,
+            'message': 'テスト処理成功',
+            'result': result
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'message': 'テスト処理失敗',
+            'error': result.get('error')
+        }), 500
+
+
+@app.route('/api/recent-videos', methods=['GET'])
+def get_recent_videos():
+    """最近の配信動画を取得（テスト用）"""
+    p = init_pipeline()
+    channel_ids = p.config['target_channel_ids']
+    
+    all_videos = []
+    for channel_id in channel_ids:
+        if not channel_id.strip():
+            continue
+        
+        videos = p.youtube_api.get_recent_livestreams(
+            channel_id.strip(),
+            max_results=5,
+            days_back=7
+        )
+        
+        for video in videos:
+            all_videos.append({
+                'id': video['id'],
+                'title': video['snippet']['title'],
+                'channel_id': channel_id,
+                'published_at': video['snippet']['publishedAt'],
+                'thumbnail': video['snippet']['thumbnails']['default']['url']
+            })
+    
+    return jsonify({'videos': all_videos})
 
 
 def main():
