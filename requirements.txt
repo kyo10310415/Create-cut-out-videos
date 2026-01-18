@@ -1,0 +1,38 @@
+# YouTube API
+google-api-python-client==2.108.0
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
+
+# Video processing
+ffmpeg-python==0.2.0
+
+# Audio/Speech recognition (for subtitles)
+openai-whisper==20231117
+torch==2.1.2
+torchaudio==2.1.2
+
+# Subtitle generation
+pysrt==1.1.2
+
+# Image processing (for thumbnails and text overlay)
+Pillow==10.1.0
+
+# Utilities
+python-dotenv==1.0.0
+requests==2.31.0
+pydantic==2.5.3
+
+# Web framework (for API/dashboard - optional)
+flask==3.0.0
+
+# Scheduling
+schedule==1.2.0
+
+# Progress tracking
+tqdm==4.66.1
+
+# JSON handling
+orjson==3.9.10
+
+# YouTube download
+yt-dlp==2023.12.30

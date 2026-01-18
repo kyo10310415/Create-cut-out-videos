@@ -1,0 +1,47 @@
+# Dependencies
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+build/
+*.egg-info/
+
+# Environment variables
+.env
+.env.local
+
+# Downloaded videos
+downloads/
+temp/
+output/
+*.mp4
+*.webm
+*.mkv
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Backup files
+*.backup
+*.bak
+*.tar.gz
+*.zip
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/

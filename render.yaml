@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: youtube-clipper
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: |
+      apt-get update
+      apt-get install -y ffmpeg
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: YOUTUBE_CLIENT_ID
+        sync: false
+      - key: YOUTUBE_CLIENT_SECRET
+        sync: false
+      - key: TARGET_CHANNEL_IDS
+        value: UCrzO_hsFW8vLLy8xFBADfqQ,UC3NYX0zN6GySr_hzJHU4tog
+      - key: PORT
+        value: 10000
+
+  - type: cron
+    name: youtube-clipper-daily
+    env: python
+    region: oregon
+    plan: starter
+    schedule: "0 2 * * *"  # Run at 2 AM daily
+    buildCommand: |
+      apt-get update
+      apt-get install -y ffmpeg
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    startCommand: python run_processor.py
+    envVars:
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: YOUTUBE_CLIENT_ID
+        sync: false
+      - key: YOUTUBE_CLIENT_SECRET
+        sync: false
+      - key: TARGET_CHANNEL_IDS
+        value: UCrzO_hsFW8vLLy8xFBADfqQ,UC3NYX0zN6GySr_hzJHU4tog
