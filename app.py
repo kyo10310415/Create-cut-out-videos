@@ -443,7 +443,9 @@ HTML_TEMPLATE = """
         }
         
         function testSingleVideo() {
+            console.log('testSingleVideo called');
             const videoId = document.getElementById('test-video-id').value.trim();
+            console.log('Video ID:', videoId);
             
             if (!videoId) {
                 alert('動画IDを入力してください');
@@ -451,25 +453,33 @@ HTML_TEMPLATE = """
             }
             
             if (confirm(`動画ID: ${videoId}\nこの動画を処理しますか？テストのため時間がかかります。`)) {
+                console.log('Processing video:', videoId);
                 showLoading();
                 fetch('/api/test-video', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({video_id: videoId})
                 })
-                .then(res => res.json())
+                .then(res => {
+                    console.log('Response status:', res.status);
+                    return res.json();
+                })
                 .then(data => {
+                    console.log('Response data:', data);
                     hideLoading();
                     if (data.success) {
                         alert('✅ テスト処理成功!\n出力: ' + data.result.output_file);
                         updateLog(JSON.stringify(data.result, null, 2));
                     } else {
                         alert('❌ テスト処理失敗\nエラー: ' + data.error);
+                        updateLog('エラー: ' + data.error);
                     }
                 })
                 .catch(err => {
+                    console.error('Fetch error:', err);
                     hideLoading();
                     alert('エラー: ' + err);
+                    updateLog('エラー: ' + err);
                 });
             }
         }
@@ -511,12 +521,6 @@ HTML_TEMPLATE = """
             document.getElementById('test-video-id').value = videoId;
             document.getElementById('recent-videos-list').style.display = 'none';
             alert('動画ID: ' + videoId + '\n選択されました。「この動画を処理」ボタンをクリックしてください。');
-        }
-        
-        function updateLog(message) {
-            const logOutput = document.getElementById('log-output');
-            logOutput.textContent = message;
-            logOutput.scrollTop = logOutput.scrollHeight;
         }
         
         // ステータスを定期的に更新
