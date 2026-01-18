@@ -28,11 +28,14 @@
 
 2. **リポジトリにプッシュ**
    ```bash
-   # GitHubで新しいリポジトリを作成（例: youtube-clipper）
-   # サンドボックスで実行:
+   # ✅ すでに完了しています！
+   # リポジトリURL: https://github.com/kyo10310415/Create-cut-out-videos
+   
+   # 追加の変更がある場合:
    cd /home/user/webapp
-   git remote add origin https://github.com/YOUR_USERNAME/youtube-clipper.git
-   git push -u origin main
+   git add .
+   git commit -m "変更内容"
+   git push origin main
    ```
 
 ### ステップ2: Renderでサービスを作成

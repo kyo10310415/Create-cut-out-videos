@@ -90,8 +90,8 @@ youtube-clipper/
 
 ```bash
 # リポジトリをクローン
-git clone https://github.com/YOUR_USERNAME/youtube-clipper.git
-cd youtube-clipper
+git clone https://github.com/kyo10310415/Create-cut-out-videos.git
+cd Create-cut-out-videos
 
 # 仮想環境を作成
 python -m venv venv
