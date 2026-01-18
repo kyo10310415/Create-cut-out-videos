@@ -13,6 +13,7 @@ sys.path.insert(0, str(project_root))
 
 from src.api.youtube_api import YouTubeAPI
 from src.processor.analytics import AnalyticsProcessor
+from src.processor.audio_analyzer import AudioAnalyzer
 from src.editor.video_editor import VideoEditor
 from src.subtitle.subtitle_generator import SubtitleGenerator
 from src.utils.helpers import (
@@ -50,6 +51,7 @@ class YouTubeClipperPipeline:
         self.analytics_processor = AnalyticsProcessor(
             min_highlight_score=self.config['min_highlight_score']
         )
+        self.audio_analyzer = AudioAnalyzer()  # 音声解析を追加
         self.video_editor = VideoEditor(
             output_dir=self.config['output_dir'],
             temp_dir=self.config['temp_dir'],
@@ -143,10 +145,41 @@ class YouTubeClipperPipeline:
                 video_duration_seconds=video_duration
             )
             
-            # 総合スコア計算
-            highlight_scores = self.analytics_processor.calculate_highlight_scores(
-                comment_scores, viewer_scores
-            )
+            # ステップ3.5: 動画ダウンロード（音声解析用に先に行う）
+            self.logger.info("📥 音声解析のために動画を先にダウンロードします")
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+            download_path = f"./downloads/{video_id}.mp4"
+            
+            downloaded_file = download_video(video_url, download_path, self.logger)
+            if not downloaded_file:
+                self.logger.error("動画ダウンロード失敗")
+                # ダウンロード失敗時はコメントのみで見どころ検出
+                audio_scores = {}
+            else:
+                # 音声解析を実行
+                self.logger.info("🎵 音声を解析して盛り上がりを検出します")
+                audio_features = self.audio_analyzer.analyze_audio_features(downloaded_file)
+                
+                # 音量スコアと活動スコアを統合
+                audio_scores = {}
+                for timestamp in audio_features.get('volume', {}).keys():
+                    volume_score = audio_features['volume'].get(timestamp, 0)
+                    activity_score = audio_features['activity'].get(timestamp, 0)
+                    audio_scores[timestamp] = (volume_score + activity_score) / 2
+            
+            # 総合スコア計算（コメント、視聴者、音声を統合）
+            # 音声スコアがある場合は重みを調整
+            if audio_scores:
+                self.logger.info("✓ 音声解析データを統合します")
+                # 音声スコアを追加（viewer_scoresの代わりに使用）
+                highlight_scores = self.analytics_processor.calculate_highlight_scores(
+                    comment_scores, audio_scores, retention_scores=None
+                )
+            else:
+                # 音声スコアがない場合は従来通り
+                highlight_scores = self.analytics_processor.calculate_highlight_scores(
+                    comment_scores, viewer_scores
+                )
             
             # 見どころ検出
             highlights = self.analytics_processor.detect_highlights(
@@ -160,15 +193,16 @@ class YouTubeClipperPipeline:
                 self.logger.warning("見どころが検出されませんでした")
                 return {'success': False, 'error': '見どころなし'}
             
-            # ステップ4: 動画ダウンロード
+            # ステップ4: 動画ダウンロード（すでにダウンロード済みの場合はスキップ）
             tracker.update("動画ダウンロード")
-            video_url = f"https://www.youtube.com/watch?v={video_id}"
-            download_path = f"./downloads/{video_id}.mp4"
-            
-            downloaded_file = download_video(video_url, download_path, self.logger)
-            if not downloaded_file:
-                self.logger.error("動画ダウンロード失敗")
-                return {'success': False, 'error': '動画ダウンロード失敗'}
+            if not downloaded_file or not os.path.exists(downloaded_file):
+                video_url = f"https://www.youtube.com/watch?v={video_id}"
+                download_path = f"./downloads/{video_id}.mp4"
+                
+                downloaded_file = download_video(video_url, download_path, self.logger)
+                if not downloaded_file:
+                    self.logger.error("動画ダウンロード失敗")
+                    return {'success': False, 'error': '動画ダウンロード失敗'}
             
             # ステップ5: セグメント抽出
             tracker.update("セグメント抽出")

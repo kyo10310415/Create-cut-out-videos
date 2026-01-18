@@ -47,25 +47,47 @@ class AnalyticsProcessor:
         Returns:
             {秒数: コメント密度スコア} の辞書
         """
-        # 時間区間を60秒（1分）ごとに区切る
-        interval_seconds = 60
+        # 時間区間を30秒ごとに区切る（より細かく検出）
+        interval_seconds = 30
         num_intervals = (video_duration_seconds + interval_seconds - 1) // interval_seconds
         
         comment_counts = [0] * num_intervals
+        highlight_keywords_counts = [0] * num_intervals
+        
+        # 見どころを示すキーワード
+        highlight_keywords = [
+            'すごい', 'やばい', 'www', 'wwww', 'うける', '笑', '草',
+            'きた', 'キター', 'うまい', '神', 'エモい', '泣', '感動',
+            'ここ好き', 'ここすき', '最高', 'やったー', 'おめでとう',
+            'まじか', 'マジか', 'え？', 'は？', 'ファ！？', 'やった',
+            'クリア', '勝利', '成功', 'ナイス', 'GG', 'gg'
+        ]
         
         for comment in comments:
+            comment_text = comment.get('text', '')
+            
             # コメントからタイムスタンプを抽出
-            timestamp_seconds = self._extract_timestamp_from_comment(comment['text'])
+            timestamp_seconds = self._extract_timestamp_from_comment(comment_text)
             
             if timestamp_seconds is not None and 0 <= timestamp_seconds < video_duration_seconds:
                 interval_index = timestamp_seconds // interval_seconds
                 comment_counts[interval_index] += 1
+                
+                # 見どころキーワードをチェック
+                if any(keyword in comment_text for keyword in highlight_keywords):
+                    highlight_keywords_counts[interval_index] += 2  # キーワードは2倍カウント
         
         # スコアを正規化（0-1）
-        max_count = max(comment_counts) if comment_counts else 1
+        # コメント数 + キーワードボーナス
+        combined_counts = [
+            comment_counts[i] + highlight_keywords_counts[i]
+            for i in range(num_intervals)
+        ]
+        
+        max_count = max(combined_counts) if combined_counts else 1
         comment_scores = {}
         
-        for i, count in enumerate(comment_counts):
+        for i, count in enumerate(combined_counts):
             timestamp = i * interval_seconds
             comment_scores[timestamp] = count / max_count if max_count > 0 else 0
         
@@ -248,6 +270,9 @@ class AnalyticsProcessor:
         Returns:
             [(開始秒, 終了秒, スコア)] のリスト
         """
+        if not highlight_scores:
+            return []
+        
         # スコアが閾値以上の区間を抽出
         sorted_timestamps = sorted(highlight_scores.keys())
         candidate_segments = []
@@ -275,6 +300,85 @@ class AnalyticsProcessor:
                     current_scores = []
         
         # 最後のセグメント処理
+        if current_start is not None and current_scores:
+            last_timestamp = sorted_timestamps[-1]
+            duration = last_timestamp - current_start
+            avg_score = sum(current_scores) / len(current_scores)
+            
+            if min_segment_duration <= duration <= max_segment_duration:
+                candidate_segments.append((current_start, last_timestamp, avg_score))
+        
+        # 候補が見つからない場合は、閾値を下げて再試行
+        if not candidate_segments:
+            print(f"⚠️ 閾値 {self.min_highlight_score} で見どころが見つかりませんでした。閾値を下げて再試行...")
+            
+            # 閾値を段階的に下げて試行
+            for reduced_threshold in [0.5, 0.3, 0.1]:
+                temp_segments = []
+                current_start = None
+                current_scores = []
+                
+                for timestamp in sorted_timestamps:
+                    score = highlight_scores[timestamp]
+                    
+                    if score >= reduced_threshold:
+                        if current_start is None:
+                            current_start = timestamp
+                        current_scores.append(score)
+                    else:
+                        if current_start is not None:
+                            duration = timestamp - current_start
+                            avg_score = sum(current_scores) / len(current_scores)
+                            
+                            if min_segment_duration <= duration <= max_segment_duration:
+                                temp_segments.append((current_start, timestamp, avg_score))
+                            
+                            current_start = None
+                            current_scores = []
+                
+                if temp_segments:
+                    print(f"✓ 閾値 {reduced_threshold} で {len(temp_segments)} 個の見どころを検出")
+                    candidate_segments = temp_segments
+                    break
+        
+        # それでも見つからない場合は、スコアが高い順に区間を作成
+        if not candidate_segments:
+            print("⚠️ 閾値を下げても見どころが見つかりませんでした。スコア上位の区間を抽出...")
+            
+            # スコアでソート
+            sorted_by_score = sorted(highlight_scores.items(), key=lambda x: x[1], reverse=True)
+            
+            # 上位の区間を選択
+            num_segments = min(len(sorted_by_score), target_duration // max_segment_duration)
+            
+            for i in range(num_segments):
+                timestamp, score = sorted_by_score[i]
+                start = max(0, timestamp - 30)  # 前後30秒を見どころとする
+                end = timestamp + 30
+                candidate_segments.append((start, end, score))
+            
+            print(f"✓ スコア上位 {len(candidate_segments)} 個の区間を抽出")
+        
+        # スコアでソートして上位を選択
+        candidate_segments.sort(key=lambda x: x[2], reverse=True)
+        
+        # 目標時間に収まるように選択
+        selected_segments = []
+        total_duration = 0
+        
+        for start, end, score in candidate_segments:
+            segment_duration = end - start
+            if total_duration + segment_duration <= target_duration:
+                selected_segments.append((start, end, score))
+                total_duration += segment_duration
+            
+            if total_duration >= target_duration:
+                break
+        
+        # 時系列順にソート
+        selected_segments.sort(key=lambda x: x[0])
+        
+        return selected_segments
         if current_start is not None:
             timestamp = sorted_timestamps[-1]
             duration = timestamp - current_start
