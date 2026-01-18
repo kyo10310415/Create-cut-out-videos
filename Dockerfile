@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY . .
 
 # ディレクトリを作成
-RUN mkdir -p downloads temp output logs
+RUN mkdir -p downloads temp output logs config
 
 # ポートを公開
 EXPOSE 10000

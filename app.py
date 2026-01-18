@@ -16,6 +16,7 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from run_processor import YouTubeClipperPipeline
+from auto_scheduler import AutoScheduler
 
 # 環境変数をロード
 load_dotenv()
@@ -28,6 +29,7 @@ job_results = {}
 
 # パイプライン（遅延初期化）
 pipeline = None
+scheduler = None
 
 
 def init_pipeline():
@@ -36,6 +38,14 @@ def init_pipeline():
     if pipeline is None:
         pipeline = YouTubeClipperPipeline()
     return pipeline
+
+
+def init_scheduler():
+    """スケジューラーを初期化"""
+    global scheduler
+    if scheduler is None:
+        scheduler = AutoScheduler()
+    return scheduler
 
 
 # HTMLテンプレート
@@ -242,6 +252,25 @@ HTML_TEMPLATE = """
         </div>
         
         <div class="card">
+            <h2>⏰ 自動実行設定</h2>
+            <p style="margin-bottom: 15px;">毎日前日の配信を自動的に切り抜き動画に変換します。</p>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <button class="btn" onclick="enableAutoRun()" style="flex: 1; background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                    ✓ 自動実行を有効にする
+                </button>
+                <button class="btn" onclick="disableAutoRun()" style="flex: 1; background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                    ✗ 自動実行を無効にする
+                </button>
+            </div>
+            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px;">
+                <strong>現在のステータス:</strong> <span id="auto-run-status">読み込み中...</span>
+            </div>
+            <button class="btn" onclick="processYesterday()" style="width: 100%; margin-top: 15px;">
+                📅 前日の配信を今すぐ処理
+            </button>
+        </div>
+        
+        <div class="card">
             <h2>⚙️ 設定</h2>
             <table class="config-table">
                 <tr>
@@ -334,6 +363,66 @@ HTML_TEMPLATE = """
             logOutput.scrollTop = logOutput.scrollHeight;
         }
         
+        function enableAutoRun() {
+            if (confirm('自動実行を有効にしますか？毎日前日の配信が自動処理されます。')) {
+                fetch('/api/auto-run/enable', { method: 'POST' })
+                    .then(res => res.json())
+                    .then(data => {
+                        alert(data.message);
+                        updateAutoRunStatus();
+                    })
+                    .catch(err => alert('エラー: ' + err));
+            }
+        }
+        
+        function disableAutoRun() {
+            if (confirm('自動実行を無効にしますか？')) {
+                fetch('/api/auto-run/disable', { method: 'POST' })
+                    .then(res => res.json())
+                    .then(data => {
+                        alert(data.message);
+                        updateAutoRunStatus();
+                    })
+                    .catch(err => alert('エラー: ' + err));
+            }
+        }
+        
+        function processYesterday() {
+            if (confirm('前日の配信を処理しますか？時間がかかる場合があります。')) {
+                showLoading();
+                fetch('/api/process-yesterday', { method: 'POST' })
+                    .then(res => res.json())
+                    .then(data => {
+                        hideLoading();
+                        alert(data.message);
+                        updateLog(JSON.stringify(data, null, 2));
+                    })
+                    .catch(err => {
+                        hideLoading();
+                        alert('エラー: ' + err);
+                    });
+            }
+        }
+        
+        function updateAutoRunStatus() {
+            fetch('/api/auto-run/status')
+                .then(res => res.json())
+                .then(data => {
+                    const statusEl = document.getElementById('auto-run-status');
+                    if (data.enabled) {
+                        statusEl.innerHTML = '<span style="color: #43e97b; font-weight: bold;">✓ 有効</span>';
+                    } else {
+                        statusEl.innerHTML = '<span style="color: #fa709a; font-weight: bold;">✗ 無効</span>';
+                    }
+                });
+        }
+        
+        function updateLog(message) {
+            const logOutput = document.getElementById('log-output');
+            logOutput.textContent = message;
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+        
         // ステータスを定期的に更新
         setInterval(() => {
             fetch('/api/status')
@@ -342,7 +431,12 @@ HTML_TEMPLATE = """
                     document.getElementById('total-processed').textContent = data.total_processed;
                     document.getElementById('queue-size').textContent = data.queue_size;
                 });
+            
+            updateAutoRunStatus();
         }, 5000);
+        
+        // 初回ロード時にステータスを更新
+        updateAutoRunStatus();
     </script>
 </body>
 </html>
@@ -432,6 +526,52 @@ def list_videos():
                 })
     
     return jsonify({'videos': videos})
+
+
+@app.route('/api/auto-run/status')
+def get_auto_run_status():
+    """自動実行のステータスを取得"""
+    s = init_scheduler()
+    return jsonify({
+        'enabled': s.is_enabled(),
+        'status': '有効' if s.is_enabled() else '無効'
+    })
+
+
+@app.route('/api/auto-run/enable', methods=['POST'])
+def enable_auto_run():
+    """自動実行を有効にする"""
+    s = init_scheduler()
+    s.set_auto_run(True)
+    return jsonify({
+        'success': True,
+        'message': '自動実行を有効にしました',
+        'enabled': True
+    })
+
+
+@app.route('/api/auto-run/disable', methods=['POST'])
+def disable_auto_run():
+    """自動実行を無効にする"""
+    s = init_scheduler()
+    s.set_auto_run(False)
+    return jsonify({
+        'success': True,
+        'message': '自動実行を無効にしました',
+        'enabled': False
+    })
+
+
+@app.route('/api/process-yesterday', methods=['POST'])
+def process_yesterday():
+    """前日の配信を処理"""
+    s = init_scheduler()
+    summary = s.process_yesterday_streams()
+    
+    return jsonify({
+        'message': f'前日配信処理完了: 成功 {summary["total_success"]}本, 失敗 {summary["total_failed"]}本',
+        'summary': summary
+    })
 
 
 def main():

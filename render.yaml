@@ -31,3 +31,27 @@ services:
         value: black
       - key: SUBTITLE_OUTLINE_WIDTH
         value: 3
+      - key: AUTO_RUN_ENABLED
+        value: true
+
+  - type: cron
+    name: youtube-clipper-cron
+    env: docker
+    region: oregon
+    plan: starter
+    schedule: "0 2 * * *"
+    dockerfilePath: ./Dockerfile
+    dockerCommand: python auto_scheduler.py
+    envVars:
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: TARGET_CHANNEL_IDS
+        value: UCrzO_hsFW8vLLy8xFBADfqQ,UC3NYX0zN6GySr_hzJHU4tog
+      - key: CLIP_DURATION_TARGET
+        value: 600
+      - key: MIN_HIGHLIGHT_SCORE
+        value: 0.7
+      - key: JUMP_CUT_ENABLED
+        value: true
+      - key: AUTO_RUN_ENABLED
+        value: true
