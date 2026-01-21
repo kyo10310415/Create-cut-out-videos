@@ -67,6 +67,8 @@ def download_video(
     """
     try:
         import yt_dlp
+        import base64
+        import tempfile
         
         ydl_opts = {
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
@@ -75,11 +77,39 @@ def download_video(
             'no_warnings': True,
         }
         
+        # 環境変数からCookieを読み込む
+        youtube_cookies = os.getenv('YOUTUBE_COOKIES')
+        if youtube_cookies:
+            try:
+                # Base64デコード
+                cookies_data = base64.b64decode(youtube_cookies)
+                
+                # 一時ファイルに保存
+                with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.txt') as f:
+                    f.write(cookies_data)
+                    cookies_file = f.name
+                
+                # yt-dlpにCookieファイルを指定
+                ydl_opts['cookiefile'] = cookies_file
+                
+                if logger:
+                    logger.info("✓ YouTubeのCookieを読み込みました")
+            except Exception as e:
+                if logger:
+                    logger.warning(f"Cookie読み込みエラー（続行します）: {e}")
+        
         if logger:
             logger.info(f"動画ダウンロード開始: {video_url}")
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_url])
+        
+        # 一時Cookieファイルを削除
+        if youtube_cookies and 'cookiefile' in ydl_opts:
+            try:
+                os.unlink(ydl_opts['cookiefile'])
+            except:
+                pass
         
         if logger:
             logger.info(f"動画ダウンロード完了: {output_path}")
