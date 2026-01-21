@@ -399,6 +399,13 @@ class YouTubeAPI:
             )
             response = request.execute()
             
+            # デバッグ: レスポンスの内容を確認
+            print(f"📊 Analytics API レスポンス: {response.keys()}")
+            if 'rows' in response:
+                print(f"📊 視聴維持率データ行数: {len(response['rows'])}")
+            else:
+                print(f"⚠️ 'rows' キーが見つかりません。レスポンス: {response}")
+            
             # データを整形
             if 'rows' not in response:
                 print(f"⚠️ 視聴維持率データが見つかりません: {video_id}")
@@ -429,7 +436,13 @@ class YouTubeAPI:
             }
             
         except HttpError as e:
-            print(f"❌ 視聴維持率取得エラー: {e}")
+            error_content = e.content.decode() if hasattr(e, 'content') else str(e)
+            print(f"❌ 視聴維持率取得エラー (HttpError): {e.resp.status} - {error_content}")
+            return None
+        except Exception as e:
+            print(f"❌ 視聴維持率取得エラー (Exception): {type(e).__name__} - {str(e)}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def _parse_duration_to_seconds(self, duration: str) -> int:
