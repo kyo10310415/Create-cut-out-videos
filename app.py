@@ -880,6 +880,11 @@ def api_upload_video():
                 temp_dir.mkdir(exist_ok=True)
                 
                 for i, highlight in enumerate(highlights, 1):
+                    # キャンセルチェック
+                    if job_results[job_id]['status'] == 'failed':
+                        print(f"ジョブ {job_id} がキャンセルされました")
+                        return
+                    
                     start = highlight['start']
                     end = highlight['end']
                     clip_path = temp_dir / f"{video_id}_clip_{i:02d}.mp4"
@@ -960,6 +965,25 @@ def api_job_status(job_id):
     return jsonify({
         'success': True,
         **job_results[job_id]
+    })
+
+
+@app.route('/api/job-cancel/<job_id>', methods=['POST'])
+def api_job_cancel(job_id):
+    """ジョブをキャンセル"""
+    if job_id not in job_results:
+        return jsonify({'success': False, 'error': 'ジョブが見つかりません'}), 404
+    
+    # ジョブを失敗状態にする（進行中のスレッドは次のチェックで停止）
+    job_results[job_id] = {
+        'status': 'failed',
+        'progress': 0,
+        'message': 'ユーザーによりキャンセルされました'
+    }
+    
+    return jsonify({
+        'success': True,
+        'message': 'ジョブをキャンセルしました'
     })
 
 
