@@ -425,6 +425,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
     
     <script>
+        // Version: 2026-01-21-v2 - バグ修正版
+        console.log('YouTube Clipper v2 - 前回の結果をクリアする修正版');
+        
         let currentVideoId = '';
         let currentHighlights = [];
         let selectedFile = null;
