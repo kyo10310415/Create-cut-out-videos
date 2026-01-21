@@ -378,18 +378,21 @@ class YouTubeAPI:
             return None
         
         try:
-            # 動画の公開日を取得
+            # 動画の公開日とチャンネルIDを取得
             video_details = self.get_video_details(video_id)
             if not video_details:
                 return None
             
             published_at = video_details['snippet']['publishedAt']
+            channel_id = video_details['snippet']['channelId']
             start_date = published_at.split('T')[0]
             end_date = datetime.now().strftime('%Y-%m-%d')
             
             # 視聴維持率を取得
+            # 注意: 管理者権限を持つチャンネルの動画のデータを取得する場合、
+            # channel==MINE ではなく、実際のチャンネルIDを使用
             request = self.youtube_analytics.reports().query(
-                ids='channel==MINE',
+                ids=f'channel=={channel_id}',
                 startDate=start_date,
                 endDate=end_date,
                 metrics='audienceWatchRatio,relativeRetentionPerformance',
@@ -397,6 +400,12 @@ class YouTubeAPI:
                 filters=f'video=={video_id}',
                 sort='elapsedVideoTimeRatio'
             )
+            
+            print(f"📊 Analytics API リクエスト:")
+            print(f"   Channel ID: {channel_id}")
+            print(f"   Video ID: {video_id}")
+            print(f"   期間: {start_date} - {end_date}")
+            
             response = request.execute()
             
             # デバッグ: レスポンスの内容を確認
