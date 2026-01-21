@@ -487,6 +487,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 
                 const data = await response.json();
                 
+                // デバッグ: APIレスポンスをコンソールに表示
+                console.log('=== API Response ===');
+                console.log('Video ID:', data.video_id);
+                console.log('Video Title:', data.video_title);
+                console.log('Highlights:', data.highlights);
+                console.log('==================');
+                
                 if (data.success) {
                     currentVideoId = videoId;
                     currentHighlights = data.highlights;
