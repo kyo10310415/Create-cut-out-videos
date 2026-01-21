@@ -415,8 +415,15 @@ class YouTubeClipperPipeline:
             )
             
             # 見どころを検出
+            # 動画の長さに応じて目標時間を設定（10-20%を見どころとする）
+            target_duration = max(600, int(video_duration * 0.15))  # 最低10分、または動画の15%
+            max_segments = min(10, max(5, video_duration // 600))  # 5-10個の見どころ
+            
             highlights = self.analytics_processor.detect_highlights(
-                highlight_scores=highlight_scores
+                highlight_scores=highlight_scores,
+                target_duration=target_duration,
+                min_segment_duration=30,
+                max_segment_duration=120
             )
             
             self.logger.info(f"検出された見どころ: {len(highlights)}個")

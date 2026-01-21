@@ -348,14 +348,26 @@ class AnalyticsProcessor:
             # スコアでソート
             sorted_by_score = sorted(highlight_scores.items(), key=lambda x: x[1], reverse=True)
             
-            # 上位の区間を選択
-            num_segments = min(len(sorted_by_score), target_duration // max_segment_duration)
+            # 上位の区間を選択（動画全体から均等に選ぶ）
+            # 動画の長さに応じて適切な数の見どころを選択
+            num_segments = min(len(sorted_by_score), max(5, target_duration // max_segment_duration))
             
-            for i in range(num_segments):
-                timestamp, score = sorted_by_score[i]
-                start = max(0, timestamp - 30)  # 前後30秒を見どころとする
-                end = timestamp + 30
-                candidate_segments.append((start, end, score))
+            # 動画全体から均等に見どころを選ぶ
+            segment_interval = max(1, len(sorted_by_score) // (num_segments * 2))
+            selected_indices = []
+            
+            for i in range(0, min(len(sorted_by_score), num_segments * segment_interval), segment_interval):
+                selected_indices.append(i)
+                if len(selected_indices) >= num_segments:
+                    break
+            
+            # 選択したインデックスから見どころを作成
+            for i in selected_indices:
+                if i < len(sorted_by_score):
+                    timestamp, score = sorted_by_score[i]
+                    start = max(0, timestamp - 30)  # 前後30秒を見どころとする
+                    end = min(timestamp + 30, max(highlight_scores.keys()))  # 動画の長さを超えないように
+                    candidate_segments.append((start, end, score))
             
             print(f"✓ スコア上位 {len(candidate_segments)} 個の区間を抽出")
         
@@ -371,36 +383,6 @@ class AnalyticsProcessor:
             if total_duration + segment_duration <= target_duration:
                 selected_segments.append((start, end, score))
                 total_duration += segment_duration
-            
-            if total_duration >= target_duration:
-                break
-        
-        # 時系列順にソート
-        selected_segments.sort(key=lambda x: x[0])
-        
-        return selected_segments
-        if current_start is not None:
-            timestamp = sorted_timestamps[-1]
-            duration = timestamp - current_start
-            avg_score = sum(current_scores) / len(current_scores)
-            
-            if min_segment_duration <= duration <= max_segment_duration:
-                candidate_segments.append((current_start, timestamp, avg_score))
-        
-        # スコア順にソート
-        candidate_segments.sort(key=lambda x: x[2], reverse=True)
-        
-        # 目標時間に達するまでセグメントを選択
-        selected_segments = []
-        total_duration = 0
-        
-        for segment in candidate_segments:
-            start, end, score = segment
-            duration = end - start
-            
-            if total_duration + duration <= target_duration:
-                selected_segments.append(segment)
-                total_duration += duration
             
             if total_duration >= target_duration:
                 break
