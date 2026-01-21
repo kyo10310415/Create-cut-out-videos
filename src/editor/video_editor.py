@@ -44,6 +44,51 @@ class VideoEditor:
         os.makedirs(output_dir, exist_ok=True)
         os.makedirs(temp_dir, exist_ok=True)
     
+    def extract_clip(
+        self,
+        input_video: str,
+        output_file: str,
+        start_time: int,
+        end_time: int
+    ) -> Optional[str]:
+        """
+        動画から1つのクリップを切り出す
+        
+        Args:
+            input_video: 入力動画ファイルパス
+            output_file: 出力ファイルパス
+            start_time: 開始時刻（秒）
+            end_time: 終了時刻（秒）
+            
+        Returns:
+            出力ファイルパスまたはNone
+        """
+        duration = end_time - start_time
+        
+        try:
+            # FFmpegでクリップ抽出（高速・高品質）
+            (
+                ffmpeg
+                .input(input_video, ss=start_time, t=duration)
+                .output(
+                    output_file,
+                    vcodec='libx264',
+                    acodec='aac',
+                    video_bitrate=self.video_bitrate,
+                    audio_bitrate=self.audio_bitrate,
+                    preset='medium',
+                    **{'c:v': 'libx264', 'c:a': 'aac'}
+                )
+                .overwrite_output()
+                .run(capture_stdout=True, capture_stderr=True, quiet=True)
+            )
+            
+            print(f"✓ クリップ抽出完了: {output_file} ({start_time}-{end_time}秒)")
+            return output_file
+        except ffmpeg.Error as e:
+            print(f"❌ クリップ抽出エラー ({start_time}-{end_time}): {e.stderr.decode()}")
+            return None
+    
     def extract_segments(
         self,
         input_video: str,
