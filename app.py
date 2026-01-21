@@ -6,10 +6,13 @@ Flask Webアプリケーション
 import os
 import sys
 from pathlib import Path
-from flask import Flask, render_template_string, jsonify, request
+from flask import Flask, render_template_string, jsonify, request, send_file
 from dotenv import load_dotenv
+from werkzeug.utils import secure_filename
 import threading
 import queue
+import tempfile
+import uuid
 
 # プロジェクトルートをPythonパスに追加
 project_root = Path(__file__).parent
@@ -18,15 +21,26 @@ sys.path.insert(0, str(project_root))
 from run_processor import YouTubeClipperPipeline
 from auto_scheduler import AutoScheduler
 from task_manager import task_queue
+from src.editor.video_editor import VideoEditor
+from src.subtitle.subtitle_generator import SubtitleGenerator
 
 # 環境変数をロード
 load_dotenv()
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 * 1024  # 2GB
+app.config['UPLOAD_FOLDER'] = Path(tempfile.gettempdir()) / 'youtube_clipper_uploads'
+app.config['OUTPUT_FOLDER'] = Path(tempfile.gettempdir()) / 'youtube_clipper_outputs'
+app.config['UPLOAD_FOLDER'].mkdir(parents=True, exist_ok=True)
+app.config['OUTPUT_FOLDER'].mkdir(parents=True, exist_ok=True)
 
 # 処理キュー（非同期処理用）
 job_queue = queue.Queue()
 job_results = {}
+
+# ハイライトキャッシュ
+if not hasattr(app, 'highlight_cache'):
+    app.highlight_cache = {}
 
 # パイプライン（遅延初期化）
 pipeline = None
@@ -331,7 +345,7 @@ def index():
 def api_test_video():
     """
     単一動画のテスト処理（見どころ検出のみ）
-    検出後、タスクを作成してローカルワーカーに処理を委譲
+    結果を返し、ユーザーが動画をアップロードできるようにする
     """
     try:
         data = request.get_json()
@@ -347,19 +361,22 @@ def api_test_video():
         result = pipeline.detect_highlights_only(video_id)
         
         if result and result.get('success'):
-            # タスクを作成
-            task = task_queue.add_task(
-                video_id=video_id,
-                video_title=result.get('video_title', ''),
-                highlights=result.get('highlights', []),
-                channel_id=result.get('channel_id')
-            )
+            # セッションに結果を保存（動画アップロード時に使用）
+            session_key = f"highlights_{video_id}"
+            # メモリに保存（簡易実装）
+            if not hasattr(app, 'highlight_cache'):
+                app.highlight_cache = {}
+            app.highlight_cache[session_key] = result
             
             return jsonify({
                 'success': True,
-                'message': '見どころを検出し、タスクを作成しました',
+                'message': '見どころを検出しました。動画をアップロードしてください。',
+                'video_id': video_id,
+                'video_title': result.get('video_title', ''),
+                'video_duration': result.get('video_duration', 0),
+                'highlights': result.get('highlights', []),
                 'highlights_count': len(result.get('highlights', [])),
-                'task': task.to_dict()
+                'stats': result.get('stats', {})
             })
         else:
             return jsonify({
@@ -424,6 +441,175 @@ def api_status():
         'queue_size': stats['pending'],
         'task_stats': stats
     })
+
+
+# ============================================================
+# 動画アップロード & 切り抜き生成 API
+# ============================================================
+
+@app.route('/api/upload-video', methods=['POST'])
+def api_upload_video():
+    """
+    動画をアップロードして切り抜き動画を生成
+    """
+    try:
+        # ファイルの確認
+        if 'video' not in request.files:
+            return jsonify({'success': False, 'error': '動画ファイルがアップロードされていません'}), 400
+        
+        video_file = request.files['video']
+        video_id = request.form.get('video_id', '').strip()
+        
+        if not video_id:
+            return jsonify({'success': False, 'error': '動画IDが指定されていません'}), 400
+        
+        if video_file.filename == '':
+            return jsonify({'success': False, 'error': 'ファイルが選択されていません'}), 400
+        
+        # ハイライト情報を取得
+        session_key = f"highlights_{video_id}"
+        if session_key not in app.highlight_cache:
+            return jsonify({'success': False, 'error': '先に見どころ検出を実行してください'}), 400
+        
+        highlight_data = app.highlight_cache[session_key]
+        highlights = highlight_data.get('highlights', [])
+        
+        if not highlights:
+            return jsonify({'success': False, 'error': '見どころが検出されていません'}), 400
+        
+        # ファイルを保存
+        filename = secure_filename(f"{video_id}_{uuid.uuid4().hex[:8]}.mp4")
+        upload_path = app.config['UPLOAD_FOLDER'] / filename
+        video_file.save(str(upload_path))
+        
+        # 非同期処理用のジョブIDを生成
+        job_id = str(uuid.uuid4())
+        
+        # バックグラウンドで切り抜き動画を生成
+        def process_video_job():
+            try:
+                job_results[job_id] = {
+                    'status': 'processing',
+                    'progress': 0,
+                    'message': '処理を開始しています...'
+                }
+                
+                # 動画編集の準備
+                video_editor = VideoEditor(
+                    output_dir=str(app.config['OUTPUT_FOLDER']),
+                    temp_dir=str(app.config['UPLOAD_FOLDER'] / 'temp')
+                )
+                
+                # クリップを生成
+                job_results[job_id]['message'] = 'クリップを生成中...'
+                job_results[job_id]['progress'] = 20
+                
+                clips = []
+                temp_dir = app.config['UPLOAD_FOLDER'] / 'temp'
+                temp_dir.mkdir(exist_ok=True)
+                
+                for i, highlight in enumerate(highlights, 1):
+                    start = highlight['start']
+                    end = highlight['end']
+                    clip_path = temp_dir / f"{video_id}_clip_{i:02d}.mp4"
+                    
+                    result = video_editor.extract_clip(str(upload_path), str(clip_path), start, end)
+                    
+                    if result:
+                        clips.append(str(clip_path))
+                    
+                    job_results[job_id]['progress'] = 20 + (40 * i // len(highlights))
+                
+                if not clips:
+                    raise Exception("クリップ生成に失敗しました")
+                
+                # クリップを結合
+                job_results[job_id]['message'] = 'クリップを結合中...'
+                job_results[job_id]['progress'] = 60
+                
+                combined_path = app.config['OUTPUT_FOLDER'] / f"{video_id}_highlight.mp4"
+                result = video_editor.concatenate_videos(clips, str(combined_path))
+                
+                if not result:
+                    raise Exception("クリップ結合に失敗しました")
+                
+                # 字幕生成
+                job_results[job_id]['message'] = '字幕を生成中...'
+                job_results[job_id]['progress'] = 80
+                
+                subtitle_gen = SubtitleGenerator()
+                subtitle_path = app.config['OUTPUT_FOLDER'] / f"{video_id}_highlight.srt"
+                subtitle_gen.generate_subtitle(str(combined_path), str(subtitle_path))
+                
+                # 完了
+                job_results[job_id] = {
+                    'status': 'completed',
+                    'progress': 100,
+                    'message': '切り抜き動画が完成しました！',
+                    'output_file': str(combined_path),
+                    'subtitle_file': str(subtitle_path),
+                    'video_id': video_id,
+                    'download_url': f'/api/download/{video_id}'
+                }
+                
+                # アップロードファイルを削除
+                upload_path.unlink(missing_ok=True)
+                
+                # 一時ファイルを削除
+                for clip in clips:
+                    Path(clip).unlink(missing_ok=True)
+                
+            except Exception as e:
+                job_results[job_id] = {
+                    'status': 'failed',
+                    'progress': 0,
+                    'message': f'エラー: {str(e)}'
+                }
+        
+        # バックグラウンドスレッドで処理を開始
+        thread = threading.Thread(target=process_video_job)
+        thread.start()
+        
+        return jsonify({
+            'success': True,
+            'job_id': job_id,
+            'message': '処理を開始しました'
+        })
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/job-status/<job_id>', methods=['GET'])
+def api_job_status(job_id):
+    """ジョブの処理状況を取得"""
+    if job_id not in job_results:
+        return jsonify({'success': False, 'error': 'ジョブが見つかりません'}), 404
+    
+    return jsonify({
+        'success': True,
+        **job_results[job_id]
+    })
+
+
+@app.route('/api/download/<video_id>', methods=['GET'])
+def api_download(video_id):
+    """完成した動画をダウンロード"""
+    try:
+        video_path = app.config['OUTPUT_FOLDER'] / f"{video_id}_highlight.mp4"
+        
+        if not video_path.exists():
+            return jsonify({'success': False, 'error': 'ファイルが見つかりません'}), 404
+        
+        return send_file(
+            str(video_path),
+            as_attachment=True,
+            download_name=f"{video_id}_highlight.mp4",
+            mimetype='video/mp4'
+        )
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 # ============================================================
