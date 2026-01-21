@@ -72,7 +72,8 @@ def download_video(
         import time
         
         ydl_opts = {
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            # フォーマット選択を改善（より互換性の高い形式）
+            'format': 'best[ext=mp4]/best',  # シンプルなフォーマット選択
             'outtmpl': output_path,
             'quiet': True,
             'no_warnings': True,
@@ -87,11 +88,18 @@ def download_video(
                 'Connection': 'keep-alive',
                 'Upgrade-Insecure-Requests': '1'
             },
-            # リトライ設定
-            'retries': 10,
-            'fragment_retries': 10,
-            # タイムアウト設定
-            'socket_timeout': 30,
+            # リトライ設定を強化
+            'retries': 20,  # 10 → 20に増加
+            'fragment_retries': 20,  # 10 → 20に増加
+            # タイムアウト設定を延長
+            'socket_timeout': 60,  # 30 → 60秒に延長
+            # バッファサイズを設定
+            'buffersize': 1024 * 1024,  # 1MB
+            # HTTPチャンクサイズを設定
+            'http_chunk_size': 10485760,  # 10MB
+            # ログ出力を有効化（デバッグ用）
+            'verbose': True,
+            'no_color': True,
         }
         
         # 環境変数からCookieを読み込む
