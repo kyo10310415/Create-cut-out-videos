@@ -407,12 +407,16 @@ class YouTubeClipperPipeline:
                 view_count, like_count, comment_count, video_duration
             )
             
-            # 見どころを検出
-            highlights = self.analytics_processor.detect_highlights(
+            # 各種スコアを統合
+            highlight_scores = self.analytics_processor.calculate_highlight_scores(
                 comment_scores=comment_scores,
                 viewer_scores=viewer_scores,
-                retention_scores=retention_scores,
-                video_duration=video_duration
+                retention_scores=retention_scores
+            )
+            
+            # 見どころを検出
+            highlights = self.analytics_processor.detect_highlights(
+                highlight_scores=highlight_scores
             )
             
             self.logger.info(f"検出された見どころ: {len(highlights)}個")
