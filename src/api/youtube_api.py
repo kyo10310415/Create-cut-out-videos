@@ -391,15 +391,40 @@ class YouTubeAPI:
             # 視聴維持率を取得
             # 注意: 管理者権限を持つチャンネルの動画のデータを取得する場合、
             # channel==MINE ではなく、実際のチャンネルIDを使用
-            request = self.youtube_analytics.reports().query(
-                ids=f'channel=={channel_id}',
-                startDate=start_date,
-                endDate=end_date,
-                metrics='audienceWatchRatio,relativeRetentionPerformance',
-                dimensions='elapsedVideoTimeRatio',
-                filters=f'video=={video_id}',
-                sort='elapsedVideoTimeRatio'
-            )
+            
+            # まず、channel==MINE で試す（自分のチャンネルの場合）
+            try:
+                request = self.youtube_analytics.reports().query(
+                    ids='channel==MINE',
+                    startDate=start_date,
+                    endDate=end_date,
+                    metrics='audienceWatchRatio,relativeRetentionPerformance',
+                    dimensions='elapsedVideoTimeRatio',
+                    filters=f'video=={video_id}',
+                    sort='elapsedVideoTimeRatio'
+                )
+                response = request.execute()
+                
+                # データがあればそのまま使用
+                if 'rows' in response and len(response['rows']) > 0:
+                    print(f"📊 channel==MINE でデータ取得成功")
+                else:
+                    # データがない場合、実際のチャンネルIDで再試行
+                    raise Exception("channel==MINE でデータなし、チャンネルIDで再試行")
+                    
+            except Exception as e:
+                # channel==MINE で失敗した場合、実際のチャンネルIDで試す
+                print(f"📊 channel==MINE で失敗、channel=={channel_id} で再試行...")
+                request = self.youtube_analytics.reports().query(
+                    ids=f'channel=={channel_id}',
+                    startDate=start_date,
+                    endDate=end_date,
+                    metrics='audienceWatchRatio,relativeRetentionPerformance',
+                    dimensions='elapsedVideoTimeRatio',
+                    filters=f'video=={video_id}',
+                    sort='elapsedVideoTimeRatio'
+                )
+                response = request.execute()
             
             print(f"📊 Analytics API リクエスト:")
             print(f"   Channel ID: {channel_id}")
@@ -447,6 +472,13 @@ class YouTubeAPI:
         except HttpError as e:
             error_content = e.content.decode() if hasattr(e, 'content') else str(e)
             print(f"❌ 視聴維持率取得エラー (HttpError): {e.resp.status} - {error_content}")
+            
+            if e.resp.status == 403:
+                print("⚠️ 権限エラーの可能性:")
+                print(f"   1. チャンネル {channel_id} に対する「管理者」または「オーナー」権限が必要")
+                print(f"   2. YouTube Studio (https://studio.youtube.com) で権限を確認")
+                print(f"   3. OAuth認証に使用したGoogleアカウントに権限があることを確認")
+            
             return None
         except Exception as e:
             print(f"❌ 視聴維持率取得エラー (Exception): {type(e).__name__} - {str(e)}")
