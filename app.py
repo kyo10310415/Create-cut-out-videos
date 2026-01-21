@@ -464,6 +464,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 return;
             }
             
+            // 前回の結果をクリア
+            document.getElementById('step2-card').classList.add('hidden');
+            document.getElementById('step3-card').classList.add('hidden');
+            document.getElementById('file-info').classList.add('hidden');
+            document.getElementById('upload-btn').classList.add('hidden');
+            document.getElementById('file-input').value = '';
+            selectedFile = null;
+            
             document.getElementById('detect-btn').disabled = true;
             showStatus('detection-status', 'info', '🔍 見どころを検出しています...');
             
