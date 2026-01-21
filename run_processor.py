@@ -16,6 +16,7 @@ from src.processor.analytics import AnalyticsProcessor
 from src.processor.audio_analyzer import AudioAnalyzer
 from src.editor.video_editor import VideoEditor
 from src.subtitle.subtitle_generator import SubtitleGenerator
+from src.ai.gemini_client import GeminiClient
 from src.utils.helpers import (
     setup_logger, download_video, get_video_id_from_url,
     ensure_directory, clean_filename, ProgressTracker,
@@ -52,6 +53,16 @@ class YouTubeClipperPipeline:
             min_highlight_score=self.config['min_highlight_score']
         )
         self.audio_analyzer = AudioAnalyzer()  # 音声解析を追加
+        
+        # Gemini APIクライアントを初期化（環境変数にキーがある場合のみ）
+        self.gemini_client = None
+        try:
+            self.gemini_client = GeminiClient()
+            self.logger.info("✓ Gemini API初期化完了")
+        except ValueError:
+            self.logger.warning("⚠️ Gemini APIキーが設定されていません。従来の方法で見どころを検出します。")
+        except Exception as e:
+            self.logger.warning(f"⚠️ Gemini API初期化エラー: {e}")
         self.video_editor = VideoEditor(
             output_dir=self.config['output_dir'],
             temp_dir=self.config['temp_dir'],
@@ -415,16 +426,49 @@ class YouTubeClipperPipeline:
             )
             
             # 見どころを検出
-            # 動画の長さに応じて目標時間を設定（10-20%を見どころとする）
-            target_duration = max(600, int(video_duration * 0.15))  # 最低10分、または動画の15%
-            max_segments = min(10, max(5, video_duration // 600))  # 5-10個の見どころ
+            # Gemini APIが利用可能な場合はAIで分析、そうでなければ従来の方法
+            if self.gemini_client:
+                try:
+                    self.logger.info("🤖 Gemini APIで見どころを分析中...")
+                    print("🤖 Gemini APIで見どころを分析中...")
+                    
+                    gemini_highlights = self.gemini_client.analyze_highlights(
+                        video_title=video_title,
+                        video_duration=video_duration,
+                        comments=comments,
+                        retention_data=retention_data if retention_data else None,
+                        analytics_scores=highlight_scores
+                    )
+                    
+                    if gemini_highlights:
+                        self.logger.info(f"✓ Gemini APIで見どころを検出: {len(gemini_highlights)}個")
+                        print(f"✓ Gemini APIで見どころを検出: {len(gemini_highlights)}個")
+                        
+                        # Geminiのフォーマットを統一
+                        highlights = [
+                            (h['start'], h['end'], h['score'])
+                            for h in gemini_highlights
+                        ]
+                    else:
+                        raise ValueError("Gemini APIが空の結果を返しました")
+                        
+                except Exception as e:
+                    self.logger.warning(f"⚠️ Gemini API使用エラー: {e}")
+                    print(f"⚠️ Gemini API使用エラー、従来の方法にフォールバック...")
+                    self.gemini_client = None  # 次回から使わない
             
-            highlights = self.analytics_processor.detect_highlights(
-                highlight_scores=highlight_scores,
-                target_duration=target_duration,
-                min_segment_duration=30,
-                max_segment_duration=120
-            )
+            # Gemini APIが使えない場合は従来の方法
+            if not self.gemini_client:
+                # 動画の長さに応じて目標時間を設定（10-20%を見どころとする）
+                target_duration = max(600, int(video_duration * 0.15))  # 最低10分、または動画の15%
+                max_segments = min(10, max(5, video_duration // 600))  # 5-10個の見どころ
+                
+                highlights = self.analytics_processor.detect_highlights(
+                    highlight_scores=highlight_scores,
+                    target_duration=target_duration,
+                    min_segment_duration=30,
+                    max_segment_duration=120
+                )
             
             self.logger.info(f"検出された見どころ: {len(highlights)}個")
             
