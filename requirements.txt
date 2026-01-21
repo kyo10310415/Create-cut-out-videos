@@ -35,4 +35,4 @@ tqdm==4.66.1
 orjson==3.9.10
 
 # YouTube download
-yt-dlp==2023.12.30
+yt-dlp>=2024.12.13  # 最新版を使用（YouTubeの仕様変更に対応）

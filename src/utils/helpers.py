@@ -69,16 +69,35 @@ def download_video(
         import yt_dlp
         import base64
         import tempfile
+        import time
         
         ydl_opts = {
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'outtmpl': output_path,
             'quiet': True,
             'no_warnings': True,
+            # User-Agentを設定（最新のChromeをシミュレート）
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            # HTTPヘッダーを追加
+            'http_headers': {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'ja,en-US;q=0.7,en;q=0.3',
+                'Accept-Encoding': 'gzip, deflate',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            },
+            # リトライ設定
+            'retries': 10,
+            'fragment_retries': 10,
+            # タイムアウト設定
+            'socket_timeout': 30,
         }
         
         # 環境変数からCookieを読み込む
         youtube_cookies = os.getenv('YOUTUBE_COOKIES')
+        cookies_file = None
+        
         if youtube_cookies:
             try:
                 # Base64デコード
@@ -101,13 +120,30 @@ def download_video(
         if logger:
             logger.info(f"動画ダウンロード開始: {video_url}")
         
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([video_url])
+        # リトライロジック（最大3回）
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([video_url])
+                
+                # 成功したらループを抜ける
+                break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 5  # 5秒、10秒、15秒
+                    if logger:
+                        logger.warning(f"ダウンロード失敗（リトライ {attempt + 1}/{max_retries}）: {e}")
+                        logger.info(f"{wait_time}秒待機してリトライします...")
+                    time.sleep(wait_time)
+                else:
+                    # 最後のリトライも失敗
+                    raise e
         
         # 一時Cookieファイルを削除
-        if youtube_cookies and 'cookiefile' in ydl_opts:
+        if cookies_file:
             try:
-                os.unlink(ydl_opts['cookiefile'])
+                os.unlink(cookies_file)
             except:
                 pass
         
@@ -116,6 +152,13 @@ def download_video(
         
         return output_path
     except Exception as e:
+        # 一時Cookieファイルを削除（エラー時も）
+        if 'cookies_file' in locals() and cookies_file:
+            try:
+                os.unlink(cookies_file)
+            except:
+                pass
+        
         if logger:
             logger.error(f"動画ダウンロードエラー: {e}")
         return None
