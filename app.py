@@ -727,6 +727,7 @@ def api_test_video():
         pipeline = init_pipeline()
         
         # 見どころ検出のみ実行（ダウンロード・編集はしない）
+        # 注意: キャッシュを使用せず、毎回新しく検出する
         result = pipeline.detect_highlights_only(video_id)
         
         if result and result.get('success'):
@@ -735,6 +736,7 @@ def api_test_video():
             # メモリに保存（簡易実装）
             if not hasattr(app, 'highlight_cache'):
                 app.highlight_cache = {}
+            # 常に最新の結果で上書き（キャッシュ問題を回避）
             app.highlight_cache[session_key] = result
             
             return jsonify({
