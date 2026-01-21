@@ -337,6 +337,126 @@ class YouTubeClipperPipeline:
             self.logger.error(f"処理エラー: {e}", exc_info=True)
             return {'success': False, 'error': str(e)}
     
+    def detect_highlights_only(self, video_id: str) -> dict:
+        """
+        見どころ検出のみ実行（ダウンロード・編集はしない）
+        ローカルワーカーに処理を委譲するための情報を返す
+        
+        Args:
+            video_id: YouTube動画ID
+            
+        Returns:
+            見どころ情報の辞書
+        """
+        self.logger.info(f"=== 見どころ検出開始: {video_id} ===")
+        
+        try:
+            # ステップ1: 動画情報取得
+            video_details = self.youtube_api.get_video_details(video_id)
+            if not video_details:
+                self.logger.error(f"動画情報取得失敗: {video_id}")
+                return {'success': False, 'error': '動画情報取得失敗'}
+            
+            video_title = video_details['snippet']['title']
+            video_duration = self._parse_duration(video_details['contentDetails']['duration'])
+            channel_id = video_details['snippet'].get('channelId')
+            
+            self.logger.info(f"動画: {video_title} (長さ: {format_duration(video_duration)})")
+            
+            # ステップ2: コメント取得
+            comments = self.youtube_api.get_video_comments(video_id, max_results=100)
+            self.logger.info(f"コメント数: {len(comments)}")
+            
+            # ステップ3: アナリティクス分析
+            
+            # コメント密度分析
+            comment_scores = self.analytics_processor.analyze_comments(comments, video_duration)
+            
+            # 視聴維持率を取得（Analytics API v2）
+            retention_data = None
+            retention_scores = {}
+            
+            try:
+                self.logger.info("📊 視聴維持率データを取得しています...")
+                retention_data = self.youtube_api.get_audience_retention(video_id)
+                
+                if retention_data:
+                    data_points = len(retention_data)
+                    print(f"✓ 視聴維持率データを取得: {data_points} ポイント")
+                    self.logger.info(f"✓ 視聴維持率データを取得: {data_points} ポイント")
+                    
+                    # 視聴維持率データを正規化
+                    for point in retention_data:
+                        elapsed_time = point.get('elapsedVideoTimeRatio', 0)
+                        retention = point.get('audienceWatchRatio', 0)
+                        timestamp = int(elapsed_time * video_duration)
+                        retention_scores[timestamp] = retention
+                else:
+                    print(f"✓ 視聴維持率データを取得: 0 ポイント")
+                    self.logger.info("✓ 視聴維持率データを取得: 0 ポイント")
+            except Exception as e:
+                self.logger.warning(f"視聴維持率データ取得エラー: {e}")
+                print(f"✓ 視聴維持率データを取得: 0 ポイント")
+            
+            # 統計情報から同接数を推定
+            view_count = int(video_details['statistics'].get('viewCount', 0))
+            like_count = int(video_details['statistics'].get('likeCount', 0))
+            comment_count = int(video_details['statistics'].get('commentCount', 0))
+            
+            viewer_scores = self.analytics_processor.estimate_concurrent_viewers(
+                view_count, like_count, comment_count, video_duration
+            )
+            
+            # 見どころを検出
+            highlights = self.analytics_processor.detect_highlights(
+                comment_scores=comment_scores,
+                viewer_scores=viewer_scores,
+                retention_scores=retention_scores,
+                video_duration=video_duration
+            )
+            
+            self.logger.info(f"検出された見どころ: {len(highlights)}個")
+            
+            if not highlights:
+                return {
+                    'success': False,
+                    'error': '見どころが検出されませんでした',
+                    'video_id': video_id,
+                    'video_title': video_title
+                }
+            
+            return {
+                'success': True,
+                'video_id': video_id,
+                'video_title': video_title,
+                'channel_id': channel_id,
+                'video_duration': video_duration,
+                'highlights': [
+                    {
+                        'start': h[0],
+                        'end': h[1],
+                        'score': h[2]
+                    }
+                    for h in highlights
+                ],
+                'stats': {
+                    'comments': len(comments),
+                    'views': view_count,
+                    'likes': like_count,
+                    'retention_data_points': len(retention_scores)
+                }
+            }
+            
+        except Exception as e:
+            self.logger.error(f"見どころ検出エラー: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'success': False,
+                'error': str(e),
+                'video_id': video_id
+            }
+    
     def _parse_duration(self, duration_str: str) -> int:
         """
         ISO 8601形式の動画長さを秒に変換

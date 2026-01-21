@@ -17,6 +17,7 @@ sys.path.insert(0, str(project_root))
 
 from run_processor import YouTubeClipperPipeline
 from auto_scheduler import AutoScheduler
+from task_manager import task_queue
 
 # 環境変数をロード
 load_dotenv()
@@ -328,7 +329,10 @@ def index():
 
 @app.route('/api/test-video', methods=['POST'])
 def api_test_video():
-    """単一動画のテスト処理"""
+    """
+    単一動画のテスト処理（見どころ検出のみ）
+    検出後、タスクを作成してローカルワーカーに処理を委譲
+    """
     try:
         data = request.get_json()
         video_id = data.get('video_id', '').strip()
@@ -339,18 +343,28 @@ def api_test_video():
         # パイプラインを初期化
         pipeline = init_pipeline()
         
-        # 動画を処理
-        result = pipeline.process_video(video_id)
+        # 見どころ検出のみ実行（ダウンロード・編集はしない）
+        result = pipeline.detect_highlights_only(video_id)
         
         if result and result.get('success'):
+            # タスクを作成
+            task = task_queue.add_task(
+                video_id=video_id,
+                video_title=result.get('video_title', ''),
+                highlights=result.get('highlights', []),
+                channel_id=result.get('channel_id')
+            )
+            
             return jsonify({
                 'success': True,
-                'result': result
+                'message': '見どころを検出し、タスクを作成しました',
+                'highlights_count': len(result.get('highlights', [])),
+                'task': task.to_dict()
             })
         else:
             return jsonify({
                 'success': False,
-                'error': result.get('error', '処理に失敗しました')
+                'error': result.get('error', '見どころ検出に失敗しました')
             })
     
     except Exception as e:
@@ -403,11 +417,223 @@ def api_auto_run_status():
 @app.route('/api/status', methods=['GET'])
 def api_status():
     """システムステータスを取得"""
+    stats = task_queue.get_stats()
     return jsonify({
         'success': True,
-        'total_processed': 0,
-        'queue_size': job_queue.qsize()
+        'total_processed': stats['completed'],
+        'queue_size': stats['pending'],
+        'task_stats': stats
     })
+
+
+# ============================================================
+# タスク管理 API（ローカルワーカー用）
+# ============================================================
+
+@app.route('/api/tasks/create', methods=['POST'])
+def api_create_task():
+    """
+    タスクを作成（見どころ検出後に呼び出し）
+    
+    Request Body:
+    {
+        "video_id": "dQw4w9WgXcQ",
+        "video_title": "Rick Astley - Never Gonna Give You Up",
+        "highlights": [
+            {"start": 30, "end": 60, "score": 0.85},
+            {"start": 120, "end": 150, "score": 0.78}
+        ],
+        "channel_id": "UCrzO_hsFW8vLLy8xFBADfqQ"
+    }
+    """
+    try:
+        data = request.get_json()
+        video_id = data.get('video_id')
+        video_title = data.get('video_title', '')
+        highlights = data.get('highlights', [])
+        channel_id = data.get('channel_id')
+        
+        if not video_id or not highlights:
+            return jsonify({'success': False, 'error': '必須パラメータが不足しています'}), 400
+        
+        # タスクを作成
+        task = task_queue.add_task(video_id, video_title, highlights, channel_id)
+        
+        return jsonify({
+            'success': True,
+            'task': task.to_dict()
+        })
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/tasks/pending', methods=['GET'])
+def api_get_pending_task():
+    """
+    処理待ちタスクを1つ取得（ローカルワーカーがポーリング）
+    
+    Response:
+    {
+        "success": true,
+        "task": {
+            "task_id": "uuid",
+            "video_id": "dQw4w9WgXcQ",
+            "video_title": "...",
+            "highlights": [...],
+            "status": "pending"
+        }
+    }
+    """
+    try:
+        task = task_queue.get_pending_task()
+        
+        if task:
+            # タスクを processing 状態に変更
+            worker_id = request.args.get('worker_id', 'unknown-worker')
+            task.start_processing(worker_id)
+            
+            return jsonify({
+                'success': True,
+                'task': task.to_dict()
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'task': None,
+                'message': '処理待ちタスクはありません'
+            })
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/tasks/complete', methods=['POST'])
+def api_complete_task():
+    """
+    タスク完了を通知（ローカルワーカーから）
+    
+    Request Body:
+    {
+        "task_id": "uuid",
+        "output_file": "/path/to/output.mp4",
+        "worker_id": "local-worker-1"
+    }
+    """
+    try:
+        data = request.get_json()
+        task_id = data.get('task_id')
+        output_file = data.get('output_file')
+        worker_id = data.get('worker_id', 'unknown')
+        
+        if not task_id or not output_file:
+            return jsonify({'success': False, 'error': '必須パラメータが不足しています'}), 400
+        
+        task = task_queue.get_task(task_id)
+        
+        if not task:
+            return jsonify({'success': False, 'error': 'タスクが見つかりません'}), 404
+        
+        task.complete(output_file)
+        
+        return jsonify({
+            'success': True,
+            'message': 'タスクを完了としてマークしました',
+            'task': task.to_dict()
+        })
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/tasks/error', methods=['POST'])
+def api_error_task():
+    """
+    タスクエラーを通知（ローカルワーカーから）
+    
+    Request Body:
+    {
+        "task_id": "uuid",
+        "error": "エラーメッセージ",
+        "worker_id": "local-worker-1"
+    }
+    """
+    try:
+        data = request.get_json()
+        task_id = data.get('task_id')
+        error_message = data.get('error', '不明なエラー')
+        worker_id = data.get('worker_id', 'unknown')
+        
+        if not task_id:
+            return jsonify({'success': False, 'error': 'タスクIDが必要です'}), 400
+        
+        task = task_queue.get_task(task_id)
+        
+        if not task:
+            return jsonify({'success': False, 'error': 'タスクが見つかりません'}), 404
+        
+        task.fail(error_message)
+        
+        return jsonify({
+            'success': True,
+            'message': 'タスクをエラーとしてマークしました',
+            'task': task.to_dict()
+        })
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/tasks/list', methods=['GET'])
+def api_list_tasks():
+    """
+    タスク一覧を取得
+    
+    Query Parameters:
+    - status: pending, processing, completed, failed (オプション)
+    - limit: 取得件数（デフォルト: 50）
+    """
+    try:
+        status = request.args.get('status')
+        limit = int(request.args.get('limit', 50))
+        
+        if status:
+            tasks = task_queue.get_tasks_by_status(status)
+        else:
+            tasks = task_queue.get_all_tasks()
+        
+        # 最新順にソート
+        tasks = sorted(tasks, key=lambda t: t.created_at, reverse=True)
+        
+        # 制限
+        tasks = tasks[:limit]
+        
+        return jsonify({
+            'success': True,
+            'tasks': [task.to_dict() for task in tasks],
+            'stats': task_queue.get_stats()
+        })
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/tasks/<task_id>', methods=['GET'])
+def api_get_task(task_id):
+    """特定のタスクを取得"""
+    try:
+        task = task_queue.get_task(task_id)
+        
+        if not task:
+            return jsonify({'success': False, 'error': 'タスクが見つかりません'}), 404
+        
+        return jsonify({
+            'success': True,
+            'task': task.to_dict()
+        })
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 if __name__ == '__main__':
