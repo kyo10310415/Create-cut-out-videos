@@ -380,16 +380,16 @@ class YouTubeClipperPipeline:
                 self.logger.info("📊 視聴維持率データを取得しています...")
                 retention_data = self.youtube_api.get_audience_retention(video_id)
                 
-                if retention_data:
-                    data_points = len(retention_data)
+                if retention_data and isinstance(retention_data, dict):
+                    timestamps = retention_data.get('timestamps', [])
+                    retention_rates = retention_data.get('retention_rates', [])
+                    
+                    data_points = len(timestamps)
                     print(f"✓ 視聴維持率データを取得: {data_points} ポイント")
                     self.logger.info(f"✓ 視聴維持率データを取得: {data_points} ポイント")
                     
                     # 視聴維持率データを正規化
-                    for point in retention_data:
-                        elapsed_time = point.get('elapsedVideoTimeRatio', 0)
-                        retention = point.get('audienceWatchRatio', 0)
-                        timestamp = int(elapsed_time * video_duration)
+                    for timestamp, retention in zip(timestamps, retention_rates):
                         retention_scores[timestamp] = retention
                 else:
                     print(f"✓ 視聴維持率データを取得: 0 ポイント")
