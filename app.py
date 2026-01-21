@@ -64,13 +64,12 @@ def init_scheduler():
 
 
 # HTMLテンプレート
-HTML_TEMPLATE = """
-<!DOCTYPE html>
+HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube Clipper Dashboard</title>
+    <title>YouTube Clipper - 切り抜き動画生成</title>
     <style>
         * {
             margin: 0;
@@ -79,14 +78,14 @@ HTML_TEMPLATE = """
         }
         
         body {
-            font-family: 'Segoe UI', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 900px;
             margin: 0 auto;
         }
         
@@ -103,27 +102,52 @@ HTML_TEMPLATE = """
         
         .card {
             background: white;
-            border-radius: 15px;
-            padding: 25px;
+            border-radius: 10px;
+            padding: 30px;
             margin-bottom: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
         }
         
         .card h2 {
-            color: #667eea;
-            margin-bottom: 15px;
-            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
         }
         
         .btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 12px 24px;
+            padding: 12px 30px;
             border-radius: 8px;
-            cursor: pointer;
             font-size: 1em;
-            transition: all 0.3s;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
         }
         
         .btn:hover {
@@ -131,25 +155,144 @@ HTML_TEMPLATE = """
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
         
-        .log-output {
-            background: #f5f5f5;
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .highlights-list {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .highlight-item {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid #667eea;
+        }
+        
+        .highlight-time {
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .highlight-score {
+            color: #764ba2;
+            font-size: 0.9em;
+        }
+        
+        .upload-area {
+            border: 3px dashed #ddd;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f8f9fa;
+        }
+        
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: #e7eaff;
+        }
+        
+        .upload-icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+        
+        .progress-container {
+            width: 100%;
+            background: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        
+        .progress-bar {
+            height: 30px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .status-message {
+            text-align: center;
             padding: 15px;
             border-radius: 8px;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9em;
-            max-height: 300px;
-            overflow-y: auto;
-            white-space: pre-wrap;
+            margin: 20px 0;
         }
         
-        .loading {
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .hidden {
             display: none;
-            text-align: center;
-            padding: 20px;
         }
         
-        .loading.active {
-            display: block;
+        .download-btn {
+            background: #28a745;
+            margin-top: 15px;
+        }
+        
+        .download-btn:hover {
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+        }
+        
+        .video-info {
+            background: #e7eaff;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .video-info h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .info-row:last-child {
+            border-bottom: none;
         }
         
         .spinner {
@@ -159,176 +302,384 @@ HTML_TEMPLATE = """
             width: 40px;
             height: 40px;
             animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
+            margin: 20px auto;
         }
         
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
-        input {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 1em;
-            margin-bottom: 10px;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎬 YouTube Clipper Dashboard</h1>
-            <p>YouTube配信の切り抜き動画自動生成システム</p>
+            <h1>🎬 YouTube Clipper</h1>
+            <p>切り抜き動画自動生成システム</p>
         </div>
         
-        <div class="card">
-            <h2>🧪 テストモード</h2>
-            <p style="margin-bottom: 15px;">1本の動画だけを処理してシステムをテストできます。</p>
+        <!-- ステップ1: 見どころ検出 -->
+        <div class="card" id="step1-card">
+            <h2>📊 ステップ1: 見どころ検出</h2>
+            <p style="margin-bottom: 20px; color: #666;">
+                YouTube動画のURLまたはIDを入力して、見どころを自動検出します
+            </p>
             
-            <input 
-                type="text" 
-                id="test-video-id" 
-                placeholder="例: dQw4w9WgXcQ"
-            />
+            <div class="input-group">
+                <label for="video-id">動画URL または 動画ID</label>
+                <input 
+                    type="text" 
+                    id="video-id" 
+                    placeholder="例: dQw4w9WgXcQ または https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+                />
+            </div>
             
-            <button class="btn" onclick="testSingleVideo()" style="width: 100%; margin-bottom: 10px;">
-                🎬 この動画を処理
+            <button class="btn" onclick="detectHighlights()" id="detect-btn">
+                🔍 見どころを検出
+            </button>
+            
+            <div id="detection-status" class="hidden"></div>
+        </div>
+        
+        <!-- ステップ2: 検出結果 -->
+        <div class="card hidden" id="step2-card">
+            <h2>✅ ステップ2: 検出結果</h2>
+            
+            <div class="video-info" id="video-info"></div>
+            
+            <div class="highlights-list" id="highlights-list"></div>
+            
+            <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+                <strong>📥 次のステップ:</strong>
+                <p style="margin-top: 10px;">
+                    この動画をダウンロードして、下のフォームからアップロードしてください。<br>
+                    <small style="color: #666;">
+                        YouTube Studioから直接ダウンロード、またはyt-dlpなどのツールを使用してください。
+                    </small>
+                </p>
+            </div>
+        </div>
+        
+        <!-- ステップ3: 動画アップロード -->
+        <div class="card hidden" id="step3-card">
+            <h2>📤 ステップ3: 動画アップロード</h2>
+            
+            <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
+                <div class="upload-icon">📁</div>
+                <p><strong>ファイルをドラッグ&ドロップ</strong></p>
+                <p style="color: #999; margin-top: 10px;">または クリックしてファイルを選択</p>
+                <input 
+                    type="file" 
+                    id="file-input" 
+                    accept="video/*" 
+                    style="display: none;"
+                    onchange="handleFileSelect(event)"
+                />
+            </div>
+            
+            <div id="file-info" class="hidden" style="margin-top: 20px; padding: 15px; background: #e7eaff; border-radius: 8px;">
+                <strong>選択されたファイル:</strong>
+                <p id="file-name" style="margin-top: 5px;"></p>
+                <p id="file-size" style="margin-top: 5px; color: #666;"></p>
+            </div>
+            
+            <button class="btn hidden" onclick="uploadVideo()" id="upload-btn" style="margin-top: 20px;">
+                🚀 アップロードして処理開始
             </button>
         </div>
         
-        <div class="card">
-            <h2>⏰ 自動実行設定</h2>
-            <p style="margin-bottom: 15px;">毎日前日の配信を自動的に切り抜き動画に変換します。</p>
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                <button class="btn" onclick="enableAutoRun()" style="flex: 1;">
-                    ✓ 有効にする
-                </button>
-                <button class="btn" onclick="disableAutoRun()" style="flex: 1;">
-                    ✗ 無効にする
-                </button>
-            </div>
-            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px;">
-                <strong>現在のステータス:</strong> <span id="auto-run-status">読み込み中...</span>
-            </div>
-        </div>
-        
-        <div class="card">
-            <h2>📝 処理ログ</h2>
-            <div class="log-output" id="log-output">
-                待機中...
-            </div>
-        </div>
-        
-        <div class="loading" id="loading">
+        <!-- ステップ4: 処理中 -->
+        <div class="card hidden" id="step4-card">
+            <h2>⚙️ ステップ4: 切り抜き動画を生成中...</h2>
+            
             <div class="spinner"></div>
-            <p>処理中...</p>
+            
+            <div id="processing-message" style="text-align: center; margin: 20px 0; color: #666;">
+                処理を開始しています...
+            </div>
+            
+            <div class="progress-container">
+                <div class="progress-bar" id="progress-bar">0%</div>
+            </div>
+        </div>
+        
+        <!-- ステップ5: 完成 -->
+        <div class="card hidden" id="step5-card">
+            <h2>🎉 完成！切り抜き動画が生成されました</h2>
+            
+            <div class="status-success" style="margin: 20px 0;">
+                <strong>✅ 処理が完了しました！</strong>
+                <p style="margin-top: 10px;">
+                    切り抜き動画と字幕ファイルをダウンロードできます。
+                </p>
+            </div>
+            
+            <button class="btn download-btn" onclick="downloadVideo()" id="download-video-btn">
+                💾 切り抜き動画をダウンロード (MP4)
+            </button>
+            
+            <button class="btn" onclick="resetForm()" style="margin-top: 10px; background: #6c757d;">
+                🔄 新しい動画を処理
+            </button>
         </div>
     </div>
     
     <script>
-        function showLoading() {
-            document.getElementById('loading').classList.add('active');
+        let currentVideoId = '';
+        let currentHighlights = [];
+        let selectedFile = null;
+        let currentJobId = '';
+        
+        // 動画IDをURLから抽出
+        function extractVideoId(input) {
+            input = input.trim();
+            
+            // 既に動画IDの場合
+            if (/^[a-zA-Z0-9_-]{11}$/.test(input)) {
+                return input;
+            }
+            
+            // URLの場合
+            const patterns = [
+                /[?&]v=([a-zA-Z0-9_-]{11})/,
+                /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+                /embed\/([a-zA-Z0-9_-]{11})/
+            ];
+            
+            for (const pattern of patterns) {
+                const match = input.match(pattern);
+                if (match) return match[1];
+            }
+            
+            return null;
         }
         
-        function hideLoading() {
-            document.getElementById('loading').classList.remove('active');
-        }
-        
-        function updateLog(message) {
-            const logOutput = document.getElementById('log-output');
-            logOutput.textContent = message;
-            logOutput.scrollTop = logOutput.scrollHeight;
-        }
-        
-        function testSingleVideo() {
-            console.log('testSingleVideo called');
-            const videoId = document.getElementById('test-video-id').value.trim();
-            console.log('Video ID:', videoId);
+        // 見どころ検出
+        async function detectHighlights() {
+            const input = document.getElementById('video-id').value;
+            const videoId = extractVideoId(input);
             
             if (!videoId) {
-                alert('動画IDを入力してください');
+                showStatus('detection-status', 'error', '❌ 有効な動画URLまたはIDを入力してください');
                 return;
             }
             
-            if (confirm('動画ID: ' + videoId + '\\nこの動画を処理しますか？テストのため時間がかかります。')) {
-                console.log('Processing video:', videoId);
-                showLoading();
-                updateLog('処理を開始しています...');
-                
-                fetch('/api/test-video', {
+            document.getElementById('detect-btn').disabled = true;
+            showStatus('detection-status', 'info', '🔍 見どころを検出しています...');
+            
+            try {
+                const response = await fetch('/api/test-video', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({video_id: videoId})
-                })
-                .then(function(res) {
-                    console.log('Response status:', res.status);
-                    return res.json();
-                })
-                .then(function(data) {
-                    console.log('Response data:', data);
-                    hideLoading();
-                    if (data.success) {
-                        alert('✅ テスト処理成功!\\n出力: ' + data.result.output_file);
-                        updateLog(JSON.stringify(data.result, null, 2));
-                    } else {
-                        alert('❌ テスト処理失敗\\nエラー: ' + data.error);
-                        updateLog('エラー: ' + data.error);
-                    }
-                })
-                .catch(function(err) {
-                    console.error('Fetch error:', err);
-                    hideLoading();
-                    alert('エラー: ' + err);
-                    updateLog('エラー: ' + err);
                 });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentVideoId = videoId;
+                    currentHighlights = data.highlights;
+                    
+                    // 動画情報を表示
+                    document.getElementById('video-info').innerHTML = `
+                        <h3>${data.video_title}</h3>
+                        <div class="info-row">
+                            <span>動画ID:</span>
+                            <span><code>${data.video_id}</code></span>
+                        </div>
+                        <div class="info-row">
+                            <span>長さ:</span>
+                            <span>${formatDuration(data.video_duration)}</span>
+                        </div>
+                        <div class="info-row">
+                            <span>検出された見どころ:</span>
+                            <span><strong>${data.highlights_count}個</strong></span>
+                        </div>
+                    `;
+                    
+                    // 見どころリストを表示
+                    const highlightsList = document.getElementById('highlights-list');
+                    highlightsList.innerHTML = '<h3 style="margin-bottom: 15px;">📍 見どころ一覧</h3>';
+                    
+                    data.highlights.forEach((h, i) => {
+                        highlightsList.innerHTML += `
+                            <div class="highlight-item">
+                                <span>
+                                    <strong>${i + 1}.</strong> 
+                                    <span class="highlight-time">${formatTime(h.start)} - ${formatTime(h.end)}</span>
+                                </span>
+                                <span class="highlight-score">スコア: ${(h.score * 100).toFixed(0)}%</span>
+                            </div>
+                        `;
+                    });
+                    
+                    showStatus('detection-status', 'success', '✅ 見どころの検出が完了しました！');
+                    document.getElementById('step2-card').classList.remove('hidden');
+                    document.getElementById('step3-card').classList.remove('hidden');
+                } else {
+                    showStatus('detection-status', 'error', '❌ ' + data.error);
+                    document.getElementById('detect-btn').disabled = false;
+                }
+            } catch (error) {
+                showStatus('detection-status', 'error', '❌ エラーが発生しました: ' + error.message);
+                document.getElementById('detect-btn').disabled = false;
             }
         }
         
-        function enableAutoRun() {
-            if (confirm('自動実行を有効にしますか？毎日前日の配信が自動処理されます。')) {
-                fetch('/api/auto-run/enable', { method: 'POST' })
-                    .then(function(res) { return res.json(); })
-                    .then(function(data) {
-                        alert(data.message);
-                        updateAutoRunStatus();
-                    })
-                    .catch(function(err) { alert('エラー: ' + err); });
+        // ファイル選択処理
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                selectedFile = file;
+                document.getElementById('file-name').textContent = file.name;
+                document.getElementById('file-size').textContent = `サイズ: ${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+                document.getElementById('file-info').classList.remove('hidden');
+                document.getElementById('upload-btn').classList.remove('hidden');
             }
         }
         
-        function disableAutoRun() {
-            if (confirm('自動実行を無効にしますか？')) {
-                fetch('/api/auto-run/disable', { method: 'POST' })
-                    .then(function(res) { return res.json(); })
-                    .then(function(data) {
-                        alert(data.message);
-                        updateAutoRunStatus();
-                    })
-                    .catch(function(err) { alert('エラー: ' + err); });
-            }
-        }
+        // Drag & Drop対応
+        const uploadArea = document.getElementById('upload-area');
         
-        function updateAutoRunStatus() {
-            fetch('/api/auto-run/status')
-                .then(function(res) { return res.json(); })
-                .then(function(data) {
-                    const statusEl = document.getElementById('auto-run-status');
-                    if (data.enabled) {
-                        statusEl.innerHTML = '<span style="color: #43e97b; font-weight: bold;">✓ 有効</span>';
-                    } else {
-                        statusEl.innerHTML = '<span style="color: #fa709a; font-weight: bold;">✗ 無効</span>';
-                    }
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('video/')) {
+                selectedFile = file;
+                document.getElementById('file-name').textContent = file.name;
+                document.getElementById('file-size').textContent = `サイズ: ${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+                document.getElementById('file-info').classList.remove('hidden');
+                document.getElementById('upload-btn').classList.remove('hidden');
+            } else {
+                alert('動画ファイルを選択してください');
+            }
+        });
+        
+        // 動画アップロード
+        async function uploadVideo() {
+            if (!selectedFile || !currentVideoId) {
+                alert('ファイルが選択されていないか、動画IDが設定されていません');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('video', selectedFile);
+            formData.append('video_id', currentVideoId);
+            
+            document.getElementById('upload-btn').disabled = true;
+            document.getElementById('step4-card').classList.remove('hidden');
+            
+            try {
+                const response = await fetch('/api/upload-video', {
+                    method: 'POST',
+                    body: formData
                 });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentJobId = data.job_id;
+                    // 処理状況をポーリング
+                    pollJobStatus();
+                } else {
+                    alert('アップロード失敗: ' + data.error);
+                    document.getElementById('upload-btn').disabled = false;
+                    document.getElementById('step4-card').classList.add('hidden');
+                }
+            } catch (error) {
+                alert('エラー: ' + error.message);
+                document.getElementById('upload-btn').disabled = false;
+                document.getElementById('step4-card').classList.add('hidden');
+            }
         }
         
-        // 初回ロード時にステータスを更新
-        updateAutoRunStatus();
+        // ジョブステータスのポーリング
+        async function pollJobStatus() {
+            try {
+                const response = await fetch(`/api/job-status/${currentJobId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('processing-message').textContent = data.message;
+                    document.getElementById('progress-bar').style.width = data.progress + '%';
+                    document.getElementById('progress-bar').textContent = data.progress + '%';
+                    
+                    if (data.status === 'completed') {
+                        document.getElementById('step4-card').classList.add('hidden');
+                        document.getElementById('step5-card').classList.remove('hidden');
+                    } else if (data.status === 'failed') {
+                        alert('処理失敗: ' + data.message);
+                        resetForm();
+                    } else {
+                        // 処理中の場合は2秒後に再チェック
+                        setTimeout(pollJobStatus, 2000);
+                    }
+                }
+            } catch (error) {
+                console.error('ステータス取得エラー:', error);
+                setTimeout(pollJobStatus, 2000);
+            }
+        }
         
-        // 定期的にステータスを更新
-        setInterval(updateAutoRunStatus, 10000);
+        // 動画ダウンロード
+        function downloadVideo() {
+            window.location.href = `/api/download/${currentVideoId}`;
+        }
+        
+        // フォームリセット
+        function resetForm() {
+            currentVideoId = '';
+            currentHighlights = [];
+            selectedFile = null;
+            currentJobId = '';
+            
+            document.getElementById('video-id').value = '';
+            document.getElementById('detect-btn').disabled = false;
+            document.getElementById('detection-status').innerHTML = '';
+            document.getElementById('detection-status').classList.add('hidden');
+            document.getElementById('step2-card').classList.add('hidden');
+            document.getElementById('step3-card').classList.add('hidden');
+            document.getElementById('step4-card').classList.add('hidden');
+            document.getElementById('step5-card').classList.add('hidden');
+            document.getElementById('file-info').classList.add('hidden');
+            document.getElementById('upload-btn').classList.add('hidden');
+            document.getElementById('file-input').value = '';
+        }
+        
+        // ユーティリティ関数
+        function showStatus(elementId, type, message) {
+            const element = document.getElementById(elementId);
+            element.className = `status-message status-${type}`;
+            element.textContent = message;
+            element.classList.remove('hidden');
+        }
+        
+        function formatDuration(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            
+            if (h > 0) {
+                return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            }
+            return `${m}:${String(s).padStart(2, '0')}`;
+        }
+        
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return `${m}:${String(s).padStart(2, '0')}`;
+        }
     </script>
 </body>
 </html>
