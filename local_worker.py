@@ -100,6 +100,14 @@ def process_task(task):
         logger.info("📥 動画ダウンロード開始...")
         print(f"\n📥 動画ダウンロード開始: {video_title}")
         
+        # Cookieファイルのパスを環境変数に設定（ローカル用）
+        cookie_file = project_root / "cookies.txt"
+        if cookie_file.exists():
+            os.environ['YOUTUBE_COOKIES_FILE'] = str(cookie_file)
+            logger.info(f"🍪 Cookieファイルを使用: {cookie_file}")
+        else:
+            logger.warning("⚠️ cookies.txt が見つかりません。YouTubeの認証エラーが発生する可能性があります。")
+        
         downloaded_file = download_video(video_url, str(download_path), logger)
         
         if not downloaded_file:

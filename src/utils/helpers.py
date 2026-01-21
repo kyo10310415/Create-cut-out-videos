@@ -102,28 +102,42 @@ def download_video(
             'no_color': True,
         }
         
-        # 環境変数からCookieを読み込む
-        youtube_cookies = os.getenv('YOUTUBE_COOKIES')
+        # Cookieの読み込み（優先順位: ファイル > 環境変数）
         cookies_file = None
+        cookies_file_path = os.getenv('YOUTUBE_COOKIES_FILE')
         
-        if youtube_cookies:
+        # 1. ローカルのcookies.txtファイルを優先
+        if cookies_file_path and os.path.exists(cookies_file_path):
             try:
-                # Base64デコード
-                cookies_data = base64.b64decode(youtube_cookies)
-                
-                # 一時ファイルに保存
-                with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.txt') as f:
-                    f.write(cookies_data)
-                    cookies_file = f.name
-                
-                # yt-dlpにCookieファイルを指定
-                ydl_opts['cookiefile'] = cookies_file
-                
+                ydl_opts['cookiefile'] = cookies_file_path
                 if logger:
-                    logger.info("✓ YouTubeのCookieを読み込みました")
+                    logger.info(f"✓ Cookieファイルを読み込みました: {cookies_file_path}")
             except Exception as e:
                 if logger:
-                    logger.warning(f"Cookie読み込みエラー（続行します）: {e}")
+                    logger.warning(f"Cookieファイル読み込みエラー: {e}")
+        
+        # 2. 環境変数からBase64エンコードされたCookieを読み込む（Render用）
+        else:
+            youtube_cookies = os.getenv('YOUTUBE_COOKIES')
+            
+            if youtube_cookies:
+                try:
+                    # Base64デコード
+                    cookies_data = base64.b64decode(youtube_cookies)
+                    
+                    # 一時ファイルに保存
+                    with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.txt') as f:
+                        f.write(cookies_data)
+                        cookies_file = f.name
+                    
+                    # yt-dlpにCookieファイルを指定
+                    ydl_opts['cookiefile'] = cookies_file
+                    
+                    if logger:
+                        logger.info("✓ YouTubeのCookie（環境変数）を読み込みました")
+                except Exception as e:
+                    if logger:
+                        logger.warning(f"Cookie読み込みエラー（続行します）: {e}")
         
         if logger:
             logger.info(f"動画ダウンロード開始: {video_url}")
