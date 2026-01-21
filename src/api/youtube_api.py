@@ -48,6 +48,8 @@ class YouTubeAPI:
         if credentials_env and not os.path.exists('credentials.json'):
             try:
                 import base64
+                # 改行を削除（念のため）
+                credentials_env = credentials_env.strip().replace('\n', '').replace('\r', '')
                 creds_data = base64.b64decode(credentials_env)
                 with open('credentials.json', 'wb') as f:
                     f.write(creds_data)
@@ -55,6 +57,8 @@ class YouTubeAPI:
                 print("✓ credentials.json を環境変数から復元しました")
             except Exception as e:
                 print(f"⚠️ credentials.json 復元エラー: {e}")
+                print(f"   環境変数の長さ: {len(credentials_env) if credentials_env else 0}")
+                print(f"   改行が含まれている可能性があります。改行を削除してください。")
         
         # Analytics API (OAuth認証が必要)
         if self.credentials_file and os.path.exists(self.credentials_file):
@@ -73,12 +77,16 @@ class YouTubeAPI:
         if token_env:
             try:
                 import base64
+                # 改行を削除（念のため）
+                token_env = token_env.strip().replace('\n', '').replace('\r', '')
                 token_data = base64.b64decode(token_env)
                 with open(token_file, 'wb') as f:
                     f.write(token_data)
                 print("✓ OAuth トークンを環境変数から復元しました")
             except Exception as e:
                 print(f"⚠️ トークン復元エラー: {e}")
+                print(f"   環境変数の長さ: {len(token_env) if token_env else 0}")
+                print(f"   改行が含まれている可能性があります。改行を削除してください。")
         
         # トークンファイルが存在すれば読み込む
         if os.path.exists(token_file):
