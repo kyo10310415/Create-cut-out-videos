@@ -43,16 +43,42 @@ class YouTubeAPI:
         if self.api_key:
             self.youtube = build('youtube', 'v3', developerKey=self.api_key)
         
+        # 環境変数からcredentials.jsonを復元（Render対応）
+        credentials_env = os.getenv('YOUTUBE_OAUTH_CREDENTIALS')
+        if credentials_env and not os.path.exists('credentials.json'):
+            try:
+                import base64
+                creds_data = base64.b64decode(credentials_env)
+                with open('credentials.json', 'wb') as f:
+                    f.write(creds_data)
+                self.credentials_file = 'credentials.json'
+                print("✓ credentials.json を環境変数から復元しました")
+            except Exception as e:
+                print(f"⚠️ credentials.json 復元エラー: {e}")
+        
         # Analytics API (OAuth認証が必要)
         if self.credentials_file and os.path.exists(self.credentials_file):
             creds = self._get_authenticated_credentials()
             if creds:
                 self.youtube_analytics = build('youtubeAnalytics', 'v2', credentials=creds)
+                print("✓ YouTube Analytics API v2 が初期化されました")
     
     def _get_authenticated_credentials(self) -> Optional[Credentials]:
         """OAuth認証を行い、認証情報を取得"""
         creds = None
         token_file = 'token.pickle'
+        
+        # 環境変数からトークンを読み込む（Render対応）
+        token_env = os.getenv('YOUTUBE_OAUTH_TOKEN')
+        if token_env:
+            try:
+                import base64
+                token_data = base64.b64decode(token_env)
+                with open(token_file, 'wb') as f:
+                    f.write(token_data)
+                print("✓ OAuth トークンを環境変数から復元しました")
+            except Exception as e:
+                print(f"⚠️ トークン復元エラー: {e}")
         
         # トークンファイルが存在すれば読み込む
         if os.path.exists(token_file):
@@ -62,15 +88,36 @@ class YouTubeAPI:
         # 認証情報が無効な場合は再認証
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
+                try:
+                    creds.refresh(Request())
+                    print("✓ OAuth トークンをリフレッシュしました")
+                    # リフレッシュ後のトークンを保存
+                    with open(token_file, 'wb') as token:
+                        pickle.dump(creds, token)
+                except Exception as e:
+                    print(f"⚠️ トークンリフレッシュエラー: {e}")
+                    creds = None
+            
+            # 再認証が必要な場合（ローカル環境のみ）
+            if not creds:
+                if not self.credentials_file or not os.path.exists(self.credentials_file):
+                    print("⚠️ credentials.json が見つかりません")
+                    return None
+                
+                # ローカル環境でのみ実行（Renderでは実行しない）
+                if os.getenv('RENDER'):
+                    print("⚠️ Render環境では新規認証ができません。ローカルで認証してください。")
+                    return None
+                
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self.credentials_file, self.SCOPES)
                 creds = flow.run_local_server(port=0)
-            
-            # トークンを保存
-            with open(token_file, 'wb') as token:
-                pickle.dump(creds, token)
+                
+                # トークンを保存
+                with open(token_file, 'wb') as token:
+                    pickle.dump(creds, token)
+                
+                print("✓ 新規OAuth認証が完了しました")
         
         return creds
     
@@ -311,6 +358,105 @@ class YouTubeAPI:
         except HttpError as e:
             print(f"動画検索エラー: {e}")
             return []
+    
+    def get_audience_retention(self, video_id: str) -> Optional[Dict]:
+        """
+        視聴維持率データを取得（Analytics API v2）
+        
+        Args:
+            video_id: YouTube動画ID
+            
+        Returns:
+            視聴維持率データ
+            {
+                'timestamps': [0, 30, 60, 90, ...],  # 秒数
+                'retention_rates': [1.0, 0.9, 0.8, ...]  # 維持率（0-1）
+            }
+        """
+        if not self.youtube_analytics:
+            print("⚠️ Analytics API未初期化。OAuth認証が必要です。")
+            return None
+        
+        try:
+            # 動画の公開日を取得
+            video_details = self.get_video_details(video_id)
+            if not video_details:
+                return None
+            
+            published_at = video_details['snippet']['publishedAt']
+            start_date = published_at.split('T')[0]
+            end_date = datetime.now().strftime('%Y-%m-%d')
+            
+            # 視聴維持率を取得
+            request = self.youtube_analytics.reports().query(
+                ids='channel==MINE',
+                startDate=start_date,
+                endDate=end_date,
+                metrics='audienceWatchRatio,relativeRetentionPerformance',
+                dimensions='elapsedVideoTimeRatio',
+                filters=f'video=={video_id}',
+                sort='elapsedVideoTimeRatio'
+            )
+            response = request.execute()
+            
+            # データを整形
+            if 'rows' not in response:
+                print(f"⚠️ 視聴維持率データが見つかりません: {video_id}")
+                return None
+            
+            # 動画の長さを取得（秒）
+            duration_str = video_details['contentDetails']['duration']
+            duration_seconds = self._parse_duration_to_seconds(duration_str)
+            
+            timestamps = []
+            retention_rates = []
+            
+            for row in response['rows']:
+                elapsed_ratio = float(row[0])  # elapsedVideoTimeRatio (0-1)
+                watch_ratio = float(row[1])    # audienceWatchRatio (0-1)
+                
+                timestamp = int(elapsed_ratio * duration_seconds)
+                timestamps.append(timestamp)
+                retention_rates.append(watch_ratio)
+            
+            print(f"✓ 視聴維持率データを取得: {len(timestamps)} ポイント")
+            
+            return {
+                'timestamps': timestamps,
+                'retention_rates': retention_rates,
+                'video_id': video_id,
+                'duration': duration_seconds
+            }
+            
+        except HttpError as e:
+            print(f"❌ 視聴維持率取得エラー: {e}")
+            return None
+    
+    def _parse_duration_to_seconds(self, duration: str) -> int:
+        """
+        ISO 8601形式の期間を秒に変換
+        
+        Args:
+            duration: ISO 8601形式の期間（例: PT1H30M45S）
+            
+        Returns:
+            秒数
+        """
+        import re
+        
+        hours = re.search(r'(\d+)H', duration)
+        minutes = re.search(r'(\d+)M', duration)
+        seconds = re.search(r'(\d+)S', duration)
+        
+        total_seconds = 0
+        if hours:
+            total_seconds += int(hours.group(1)) * 3600
+        if minutes:
+            total_seconds += int(minutes.group(1)) * 60
+        if seconds:
+            total_seconds += int(seconds.group(1))
+        
+        return total_seconds
 
 
 if __name__ == '__main__':

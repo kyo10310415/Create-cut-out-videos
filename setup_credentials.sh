@@ -1,0 +1,22 @@
+#!/bin/bash
+# credentials.jsonを準備するスクリプト
+
+echo "📝 credentials.jsonをBase64エンコードする手順"
+echo ""
+echo "1. ダウンロードしたcredentials.jsonファイルの場所を確認"
+echo "2. 以下のコマンドを実行してBase64エンコード:"
+echo ""
+echo "   # Macの場合:"
+echo "   base64 -i credentials.json"
+echo ""
+echo "   # Linuxの場合:"
+echo "   base64 credentials.json"
+echo ""
+echo "   # Windowsの場合:"
+echo "   certutil -encode credentials.json credentials_base64.txt"
+echo "   (credentials_base64.txtの内容をコピー)"
+echo ""
+echo "3. 出力された文字列をコピー（改行を含めて全て）"
+echo "4. Renderの環境変数に設定:"
+echo "   YOUTUBE_OAUTH_CREDENTIALS=<コピーした文字列>"
+echo ""

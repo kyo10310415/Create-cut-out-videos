@@ -136,6 +136,30 @@ class YouTubeClipperPipeline:
             # コメント密度分析
             comment_scores = self.analytics_processor.analyze_comments(comments, video_duration)
             
+            # 視聴維持率を取得（Analytics API v2）
+            retention_data = None
+            retention_scores = {}
+            
+            try:
+                self.logger.info("📊 視聴維持率データを取得しています...")
+                retention_data = self.youtube_api.get_audience_retention(video_id)
+                
+                if retention_data:
+                    # 視聴維持率を30秒間隔のスコアに変換
+                    timestamps = retention_data['timestamps']
+                    rates = retention_data['retention_rates']
+                    
+                    for i, timestamp in enumerate(timestamps):
+                        # 30秒間隔に丸める
+                        rounded_timestamp = (timestamp // 30) * 30
+                        retention_scores[rounded_timestamp] = rates[i]
+                    
+                    self.logger.info(f"✓ 視聴維持率データを取得: {len(retention_scores)} ポイント")
+                else:
+                    self.logger.info("⚠️ 視聴維持率データが取得できませんでした（OAuth認証が必要）")
+            except Exception as e:
+                self.logger.warning(f"視聴維持率取得エラー: {e}")
+            
             # 同接数推定
             stats = self.youtube_api.get_video_statistics(video_id)
             viewer_scores = self.analytics_processor.estimate_concurrent_viewers(
@@ -167,16 +191,27 @@ class YouTubeClipperPipeline:
                     activity_score = audio_features['activity'].get(timestamp, 0)
                     audio_scores[timestamp] = (volume_score + activity_score) / 2
             
-            # 総合スコア計算（コメント、視聴者、音声を統合）
-            # 音声スコアがある場合は重みを調整
-            if audio_scores:
+            # 総合スコア計算（コメント、視聴者、音声、視聴維持率を統合）
+            # 視聴維持率がある場合は重みを調整
+            if retention_scores:
+                self.logger.info("✓ 視聴維持率データを統合します")
+                # 視聴維持率を最優先
+                if audio_scores:
+                    highlight_scores = self.analytics_processor.calculate_highlight_scores(
+                        comment_scores, audio_scores, retention_scores
+                    )
+                else:
+                    highlight_scores = self.analytics_processor.calculate_highlight_scores(
+                        comment_scores, viewer_scores, retention_scores
+                    )
+            elif audio_scores:
                 self.logger.info("✓ 音声解析データを統合します")
                 # 音声スコアを追加（viewer_scoresの代わりに使用）
                 highlight_scores = self.analytics_processor.calculate_highlight_scores(
                     comment_scores, audio_scores, retention_scores=None
                 )
             else:
-                # 音声スコアがない場合は従来通り
+                # 音声スコアも視聴維持率もない場合は従来通り
                 highlight_scores = self.analytics_processor.calculate_highlight_scores(
                     comment_scores, viewer_scores
                 )
