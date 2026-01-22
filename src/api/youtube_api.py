@@ -23,16 +23,18 @@ class YouTubeAPI:
         'https://www.googleapis.com/auth/yt-analytics.readonly'
     ]
     
-    def __init__(self, api_key: Optional[str] = None, credentials_file: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, credentials_file: Optional[str] = None, channel_id: Optional[str] = None):
         """
         初期化
         
         Args:
             api_key: YouTube Data API Key (読み取り専用操作用)
             credentials_file: OAuth認証用のcredentials.jsonファイルパス
+            channel_id: チャンネルID（マルチトークン対応用）
         """
         self.api_key = api_key or os.getenv('YOUTUBE_API_KEY')
         self.credentials_file = credentials_file
+        self.channel_id = channel_id  # マルチトークン対応
         self.youtube = None
         self.youtube_analytics = None
         self._initialize_services()
@@ -68,21 +70,62 @@ class YouTubeAPI:
                 print("✓ YouTube Analytics API v2 が初期化されました")
     
     def _get_authenticated_credentials(self) -> Optional[Credentials]:
-        """OAuth認証を行い、認証情報を取得"""
+        """
+        OAuth認証を行い、認証情報を取得
+        マルチトークン対応: チャンネルIDごとに異なるトークンを使用
+        """
         creds = None
         token_file = 'token.pickle'
         
+        # マルチトークン対応: チャンネルIDごとの環境変数を確認
+        token_env = None
+        if self.channel_id:
+            # チャンネル専用のトークンを優先
+            channel_token_key = f'YOUTUBE_OAUTH_TOKEN_{self.channel_id}'
+            token_env = os.getenv(channel_token_key)
+            if token_env:
+                print(f"✓ チャンネル専用トークンを使用: {channel_token_key}")
+            else:
+                print(f"⚠️ チャンネル専用トークン '{channel_token_key}' が見つかりません")
+        
+        # フォールバック: デフォルトのトークンを使用
+        if not token_env:
+            token_env = os.getenv('YOUTUBE_OAUTH_TOKEN')
+            if token_env:
+                print("✓ デフォルトのOAuthトークンを使用")
+        
         # 環境変数からトークンを読み込む（Render対応）
-        token_env = os.getenv('YOUTUBE_OAUTH_TOKEN')
         if token_env:
             try:
                 import base64
+                import json
                 # 改行を削除（念のため）
                 token_env = token_env.strip().replace('\n', '').replace('\r', '')
-                token_data = base64.b64decode(token_env)
-                with open(token_file, 'wb') as f:
-                    f.write(token_data)
-                print("✓ OAuth トークンを環境変数から復元しました")
+                
+                # JSON形式のトークンをデコード（新形式）
+                try:
+                    token_json = base64.b64decode(token_env).decode('utf-8')
+                    token_data = json.loads(token_json)
+                    
+                    # Credentials オブジェクトを作成
+                    creds = Credentials(
+                        token=token_data['token'],
+                        refresh_token=token_data.get('refresh_token'),
+                        token_uri=token_data.get('token_uri', 'https://oauth2.googleapis.com/token'),
+                        client_id=token_data['client_id'],
+                        client_secret=token_data['client_secret'],
+                        scopes=token_data.get('scopes', self.SCOPES)
+                    )
+                    print("✓ OAuth トークンを環境変数から復元しました（JSON形式）")
+                    return creds
+                    
+                except (json.JSONDecodeError, KeyError):
+                    # 旧形式（pickle）の場合
+                    token_data = base64.b64decode(token_env)
+                    with open(token_file, 'wb') as f:
+                        f.write(token_data)
+                    print("✓ OAuth トークンを環境変数から復元しました（pickle形式）")
+                    
             except Exception as e:
                 print(f"⚠️ トークン復元エラー: {e}")
                 print(f"   環境変数の長さ: {len(token_env) if token_env else 0}")

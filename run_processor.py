@@ -109,17 +109,31 @@ class YouTubeClipperPipeline:
             'log_level': os.getenv('LOG_LEVEL', 'INFO'),
         }
     
-    def process_video(self, video_id: str) -> dict:
+    def _get_youtube_api_for_channel(self, channel_id: str) -> YouTubeAPI:
+        """
+        チャンネル専用のYouTubeAPIインスタンスを取得
+        マルチトークン対応
+        """
+        return YouTubeAPI(
+            api_key=self.config['youtube_api_key'],
+            channel_id=channel_id
+        )
+    
+    def process_video(self, video_id: str, channel_id: str = None) -> dict:
         """
         動画1本を処理
         
         Args:
             video_id: YouTube動画ID
+            channel_id: チャンネルID（マルチトークン対応用）
             
         Returns:
             処理結果の辞書
         """
         self.logger.info(f"=== 動画処理開始: {video_id} ===")
+        
+        # チャンネル専用のAPIインスタンスを使用（指定された場合）
+        youtube_api = self._get_youtube_api_for_channel(channel_id) if channel_id else self.youtube_api
         
         # 進捗トラッカー
         tracker = ProgressTracker(total_steps=8)
@@ -127,7 +141,7 @@ class YouTubeClipperPipeline:
         try:
             # ステップ1: 動画情報取得
             tracker.update("動画情報取得")
-            video_details = self.youtube_api.get_video_details(video_id)
+            video_details = youtube_api.get_video_details(video_id)
             if not video_details:
                 self.logger.error(f"動画情報取得失敗: {video_id}")
                 return {'success': False, 'error': '動画情報取得失敗'}
@@ -138,7 +152,7 @@ class YouTubeClipperPipeline:
             
             # ステップ2: コメント取得
             tracker.update("コメント取得")
-            comments = self.youtube_api.get_video_comments(video_id, max_results=100)
+            comments = youtube_api.get_video_comments(video_id, max_results=100)
             self.logger.info(f"コメント数: {len(comments)}")
             
             # ステップ3: アナリティクス分析
@@ -153,7 +167,7 @@ class YouTubeClipperPipeline:
             
             try:
                 self.logger.info("📊 視聴維持率データを取得しています...")
-                retention_data = self.youtube_api.get_audience_retention(video_id)
+                retention_data = youtube_api.get_audience_retention(video_id)
                 
                 if retention_data:
                     # 視聴維持率を30秒間隔のスコアに変換
@@ -172,7 +186,7 @@ class YouTubeClipperPipeline:
                 self.logger.warning(f"視聴維持率取得エラー: {e}")
             
             # 同接数推定
-            stats = self.youtube_api.get_video_statistics(video_id)
+            stats = youtube_api.get_video_statistics(video_id)
             viewer_scores = self.analytics_processor.estimate_concurrent_viewers(
                 view_count=int(stats.get('viewCount', 0)),
                 like_count=int(stats.get('likeCount', 0)),
