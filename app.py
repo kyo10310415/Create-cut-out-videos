@@ -909,21 +909,25 @@ def api_upload_video():
                 if not result:
                     raise Exception("クリップ結合に失敗しました")
                 
-                # 字幕生成
-                job_results[job_id]['message'] = '字幕を生成中...'
-                job_results[job_id]['progress'] = 80
+                # 字幕生成（一時的に無効化 - Renderのタイムアウト対策）
+                # job_results[job_id]['message'] = '字幕を生成中...'
+                # job_results[job_id]['progress'] = 80
                 
-                subtitle_gen = SubtitleGenerator()
-                subtitle_path = app.config['OUTPUT_FOLDER'] / f"{video_id}_highlight.srt"
+                # subtitle_gen = SubtitleGenerator()
+                # subtitle_path = app.config['OUTPUT_FOLDER'] / f"{video_id}_highlight.srt"
                 
-                # 音声認識で字幕を生成
-                segments = subtitle_gen.transcribe_audio(str(combined_path), model='base', language='ja')
-                if segments:
-                    subtitle_gen.generate_srt(segments, str(subtitle_path))
-                    logger.info(f"字幕生成完了: {subtitle_path}")
-                else:
-                    logger.warning("字幕生成をスキップ（音声認識失敗）")
-                    subtitle_path = None
+                # # 音声認識で字幕を生成
+                # segments = subtitle_gen.transcribe_audio(str(combined_path), model='base', language='ja')
+                # if segments:
+                #     subtitle_gen.generate_srt(segments, str(subtitle_path))
+                #     logger.info(f"字幕生成完了: {subtitle_path}")
+                # else:
+                #     logger.warning("字幕生成をスキップ（音声認識失敗）")
+                #     subtitle_path = None
+                
+                # 字幕生成をスキップ
+                subtitle_path = None
+                logger.info("字幕生成をスキップ（タイムアウト対策）")
                 
                 # 完了
                 job_results[job_id] = {
