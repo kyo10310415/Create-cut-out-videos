@@ -25,7 +25,7 @@ class GeminiClient:
             raise ValueError("GEMINI_API_KEY が設定されていません")
         
         self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
-        self.model = "gemini-1.5-flash"  # 高速・低コスト
+        self.model = "gemini-2.5-flash"  # 高速・低コスト（2025年6月リリース）
     
     def analyze_highlights(
         self,
