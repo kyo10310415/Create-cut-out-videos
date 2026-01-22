@@ -256,7 +256,7 @@ class AnalyticsProcessor:
         highlight_scores: Dict[int, float],
         target_duration: int = 600,  # 10分
         min_segment_duration: int = 30,  # 最小セグメント長（秒）
-        max_segment_duration: int = 120  # 最大セグメント長（秒）
+        max_segment_duration: int = 90  # 最大セグメント長（秒）- 90秒に短縮
     ) -> List[Tuple[int, int, float]]:
         """
         見どころ区間を検出
@@ -380,12 +380,25 @@ class AnalyticsProcessor:
         
         for start, end, score in candidate_segments:
             segment_duration = end - start
-            if total_duration + segment_duration <= target_duration:
-                selected_segments.append((start, end, score))
-                total_duration += segment_duration
+            
+            # 目標時間を超える場合はセグメントを短縮
+            if total_duration + segment_duration > target_duration:
+                # 残り時間を計算
+                remaining_time = target_duration - total_duration
+                if remaining_time >= min_segment_duration:
+                    # セグメントを短縮して追加
+                    end = start + remaining_time
+                    selected_segments.append((start, end, score))
+                    total_duration = target_duration
+                break
+            
+            selected_segments.append((start, end, score))
+            total_duration += segment_duration
             
             if total_duration >= target_duration:
                 break
+        
+        print(f"✓ 最終選択: {len(selected_segments)}個の見どころ（合計: {total_duration}秒 / 目標: {target_duration}秒）")
         
         # 時系列順にソート
         selected_segments.sort(key=lambda x: x[0])
