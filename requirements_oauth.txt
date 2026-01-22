@@ -1,0 +1,14 @@
+# OAuth認証アプリ用の軽量版 requirements.txt
+# Whisper や PyTorch などの重いパッケージは除外
+
+# YouTube API
+google-api-python-client==2.108.0
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
+
+# Web framework
+flask==3.0.0
+
+# Utilities
+python-dotenv==1.0.0
+requests==2.31.0
