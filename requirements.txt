@@ -8,8 +8,7 @@ ffmpeg-python==0.2.0
 
 # Audio/Speech recognition (for subtitles)
 openai-whisper==20231117
-torch==2.1.2
-torchaudio==2.1.2
+# torch と torchaudio は Dockerfile で CPU版をインストール
 
 # Subtitle generation
 pysrt==1.1.2

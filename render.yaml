@@ -16,10 +16,47 @@ services:
       - key: PORT
         value: 10000
 
-  # メイン処理サービス（後で追加）
-  # - type: web
-  #   name: youtube-clipper
-  #   env: docker
-  #   dockerfilePath: ./Dockerfile
-  #   ...
+  # 切り抜き動画生成システム
+  - type: web
+    name: youtube-clipper
+    env: docker
+    region: oregon
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: GOOGLE_OAUTH_CREDENTIALS
+        sync: false
+      - key: YOUTUBE_OAUTH_TOKEN
+        sync: false
+      - key: YOUTUBE_OAUTH_TOKEN_UCrzO_hsFW8vLLy8xFBADfqQ
+        sync: false
+      - key: YOUTUBE_OAUTH_TOKEN_UC3NYX0zN6GySr_hzJHU4tog
+        sync: false
+      - key: YOUTUBE_OAUTH_TOKEN_UChzVx-TG5UcoVJw3xvG_ggw
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: TARGET_CHANNEL_IDS
+        value: UCrzO_hsFW8vLLy8xFBADfqQ,UC3NYX0zN6GySr_hzJHU4tog,UChzVx-TG5UcoVJw3xvG_ggw
+      - key: PORT
+        value: 10000
+      - key: CLIP_DURATION_TARGET
+        value: 600
+      - key: MIN_HIGHLIGHT_SCORE
+        value: 0.7
+      - key: JUMP_CUT_ENABLED
+        value: true
+      - key: SUBTITLE_FONT_SIZE
+        value: 48
+      - key: SUBTITLE_COLOR
+        value: white
+      - key: SUBTITLE_OUTLINE_COLOR
+        value: black
+      - key: SUBTITLE_OUTLINE_WIDTH
+        value: 3
+      - key: AUTO_RUN_ENABLED
+        value: false
 

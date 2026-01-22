@@ -11,7 +11,10 @@ RUN apt-get update && \
 
 # requirements.txtをコピーして依存関係をインストール
 COPY requirements.txt .
+
+# torchを先にインストール（CPU版・軽量）
 RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
 
 # アプリケーションコードをコピー
