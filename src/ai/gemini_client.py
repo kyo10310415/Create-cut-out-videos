@@ -260,7 +260,7 @@ JSON配列のみを出力し、説明文は不要です。
         }
         
         try:
-            response = requests.post(url, headers=headers, json=data, timeout=30)
+            response = requests.post(url, headers=headers, json=data, timeout=60)  # 30秒 → 60秒に延長
             response.raise_for_status()
             
             result = response.json()
