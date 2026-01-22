@@ -12,6 +12,9 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
+# HTTPS を強制（insecure_transport エラー対策）
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '0'
+
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
@@ -40,17 +43,24 @@ if os.getenv('GOOGLE_OAUTH_CREDENTIALS') and not os.path.exists(CREDENTIALS_FILE
 
 # リダイレクトURI（自動取得または環境変数）
 def get_redirect_uri():
-    """リダイレクトURIを取得"""
+    """リダイレクトURIを取得（HTTPS強制）"""
     # 環境変数から取得
     if os.getenv('OAUTH_REDIRECT_URI'):
-        return os.getenv('OAUTH_REDIRECT_URI')
+        uri = os.getenv('OAUTH_REDIRECT_URI')
+        # HTTPSに強制変換
+        if uri.startswith('http://'):
+            uri = uri.replace('http://', 'https://', 1)
+        return uri
     
-    # Renderのドメインを自動取得
+    # Renderのドメインを自動取得（必ずHTTPSを使用）
     render_external_url = os.getenv('RENDER_EXTERNAL_URL')
     if render_external_url:
+        # 念のためHTTPSに変換
+        if render_external_url.startswith('http://'):
+            render_external_url = render_external_url.replace('http://', 'https://', 1)
         return f"{render_external_url}/oauth2callback"
     
-    # ローカル開発時
+    # ローカル開発時（開発時のみHTTP許可）
     return 'http://localhost:10000/oauth2callback'
 
 REDIRECT_URI = get_redirect_uri()
@@ -288,6 +298,13 @@ def authorize():
             scopes=SCOPES,
             redirect_uri=REDIRECT_URI
         )
+        
+        # HTTPS を強制（Render環境ではHTTPSを使用）
+        # ローカル開発時のみHTTPを許可
+        if not REDIRECT_URI.startswith('http://localhost'):
+            os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '0'
+        else:
+            os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
         
         # 認証URLを生成
         authorization_url, state = flow.authorization_url(
