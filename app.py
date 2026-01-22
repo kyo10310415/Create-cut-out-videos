@@ -920,9 +920,9 @@ def api_upload_video():
                 segments = subtitle_gen.transcribe_audio(str(combined_path), model='base', language='ja')
                 if segments:
                     subtitle_gen.generate_srt(segments, str(subtitle_path))
-                    logger.info(f"字幕生成完了: {subtitle_path}")
+                    print(f"字幕生成完了: {subtitle_path}")
                 else:
-                    logger.warning("字幕生成をスキップ（音声認識失敗）")
+                    print("字幕生成をスキップ（音声認識失敗）")
                     subtitle_path = None
                 
                 # 完了
