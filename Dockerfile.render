@@ -1,0 +1,30 @@
+FROM python:3.11-slim
+
+# 作業ディレクトリを設定
+WORKDIR /app
+
+# システムパッケージを更新（FFmpegは不要なので削除）
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+# requirements-render.txt をコピーして依存関係をインストール
+COPY requirements-render.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements-render.txt
+
+# アプリケーションコードをコピー
+COPY . .
+
+# ディレクトリを作成
+RUN mkdir -p logs config
+
+# ポートを公開
+EXPOSE 10000
+
+# 環境変数
+ENV PYTHONUNBUFFERED=1
+ENV PORT=10000
+
+# OAuth認証アプリを起動
+CMD ["python", "oauth_setup.py"]

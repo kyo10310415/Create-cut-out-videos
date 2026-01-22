@@ -1,57 +1,25 @@
 services:
   - type: web
-    name: youtube-clipper
+    name: youtube-clipper-oauth-v2
     env: docker
     region: oregon
-    plan: starter
-    dockerfilePath: ./Dockerfile
+    plan: free
+    dockerfilePath: ./Dockerfile.render
     dockerContext: .
     envVars:
-      - key: YOUTUBE_API_KEY
+      - key: GOOGLE_OAUTH_CREDENTIALS
         sync: false
-      - key: YOUTUBE_CLIENT_ID
+      - key: YOUTUBE_OAUTH_TOKEN
         sync: false
-      - key: YOUTUBE_CLIENT_SECRET
-        sync: false
-      - key: TARGET_CHANNEL_IDS
-        value: UCrzO_hsFW8vLLy8xFBADfqQ,UC3NYX0zN6GySr_hzJHU4tog
+      - key: OAUTH_REDIRECT_URI
+        value: https://youtube-clipper-oauth-v2.onrender.com/oauth2callback
       - key: PORT
         value: 10000
-      - key: CLIP_DURATION_TARGET
-        value: 600
-      - key: MIN_HIGHLIGHT_SCORE
-        value: 0.7
-      - key: JUMP_CUT_ENABLED
-        value: true
-      - key: SUBTITLE_FONT_SIZE
-        value: 48
-      - key: SUBTITLE_COLOR
-        value: white
-      - key: SUBTITLE_OUTLINE_COLOR
-        value: black
-      - key: SUBTITLE_OUTLINE_WIDTH
-        value: 3
-      - key: AUTO_RUN_ENABLED
-        value: true
 
-  - type: cron
-    name: youtube-clipper-cron
-    env: docker
-    region: oregon
-    plan: starter
-    schedule: "0 2 * * *"
-    dockerfilePath: ./Dockerfile
-    dockerCommand: python auto_scheduler.py
-    envVars:
-      - key: YOUTUBE_API_KEY
-        sync: false
-      - key: TARGET_CHANNEL_IDS
-        value: UCrzO_hsFW8vLLy8xFBADfqQ,UC3NYX0zN6GySr_hzJHU4tog
-      - key: CLIP_DURATION_TARGET
-        value: 600
-      - key: MIN_HIGHLIGHT_SCORE
-        value: 0.7
-      - key: JUMP_CUT_ENABLED
-        value: true
-      - key: AUTO_RUN_ENABLED
-        value: true
+  # メイン処理サービス（後で追加）
+  # - type: web
+  #   name: youtube-clipper
+  #   env: docker
+  #   dockerfilePath: ./Dockerfile
+  #   ...
+

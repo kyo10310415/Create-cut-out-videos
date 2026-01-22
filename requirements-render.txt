@@ -1,0 +1,31 @@
+# YouTube API
+google-api-python-client==2.108.0
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
+
+# Web framework
+flask==3.0.0
+
+# Utilities
+python-dotenv==1.0.0
+requests==2.31.0
+pydantic==2.5.3
+
+# JSON handling
+orjson==3.9.10
+
+# Progress tracking
+tqdm==4.66.1
+
+# AI Integration
+google-generativeai==0.8.3
+
+# Note: 以下の重量級パッケージは除外（ローカル実行専用）
+# - torch (2GB+)
+# - torchaudio (500MB+)
+# - openai-whisper (大容量)
+# - ffmpeg-python (Renderでは不要)
+# - yt-dlp (動画ダウンロード不要)
+# - Pillow (画像処理不要)
+# - pysrt (字幕生成不要)
+# - schedule (スケジューリング不要)
