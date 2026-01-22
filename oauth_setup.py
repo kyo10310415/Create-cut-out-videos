@@ -25,10 +25,36 @@ SCOPES = [
 # credentials.jsonのパス
 CREDENTIALS_FILE = 'credentials.json'
 
-# リダイレクトURI（Renderのドメインに合わせて変更）
-# ローカル開発時: http://localhost:10000/oauth2callback
-# Render本番: https://your-app.onrender.com/oauth2callback
-REDIRECT_URI = os.getenv('OAUTH_REDIRECT_URI', 'http://localhost:10000/oauth2callback')
+# 環境変数からcredentials.jsonを復元
+if os.getenv('GOOGLE_OAUTH_CREDENTIALS') and not os.path.exists(CREDENTIALS_FILE):
+    try:
+        credentials_base64 = os.getenv('GOOGLE_OAUTH_CREDENTIALS')
+        # 改行を削除
+        credentials_base64 = credentials_base64.strip().replace('\n', '').replace('\r', '')
+        credentials_bytes = base64.b64decode(credentials_base64)
+        with open(CREDENTIALS_FILE, 'wb') as f:
+            f.write(credentials_bytes)
+        print(f"✓ {CREDENTIALS_FILE} を環境変数から復元しました")
+    except Exception as e:
+        print(f"⚠️ {CREDENTIALS_FILE} 復元エラー: {e}")
+
+# リダイレクトURI（自動取得または環境変数）
+def get_redirect_uri():
+    """リダイレクトURIを取得"""
+    # 環境変数から取得
+    if os.getenv('OAUTH_REDIRECT_URI'):
+        return os.getenv('OAUTH_REDIRECT_URI')
+    
+    # Renderのドメインを自動取得
+    render_external_url = os.getenv('RENDER_EXTERNAL_URL')
+    if render_external_url:
+        return f"{render_external_url}/oauth2callback"
+    
+    # ローカル開発時
+    return 'http://localhost:10000/oauth2callback'
+
+REDIRECT_URI = get_redirect_uri()
+print(f"📍 リダイレクトURI: {REDIRECT_URI}")
 
 
 HTML_TEMPLATE = """
