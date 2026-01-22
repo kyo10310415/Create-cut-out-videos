@@ -915,7 +915,15 @@ def api_upload_video():
                 
                 subtitle_gen = SubtitleGenerator()
                 subtitle_path = app.config['OUTPUT_FOLDER'] / f"{video_id}_highlight.srt"
-                subtitle_gen.generate_subtitle(str(combined_path), str(subtitle_path))
+                
+                # 音声認識で字幕を生成
+                segments = subtitle_gen.transcribe_audio(str(combined_path), model='base', language='ja')
+                if segments:
+                    subtitle_gen.generate_srt(segments, str(subtitle_path))
+                    logger.info(f"字幕生成完了: {subtitle_path}")
+                else:
+                    logger.warning("字幕生成をスキップ（音声認識失敗）")
+                    subtitle_path = None
                 
                 # 完了
                 job_results[job_id] = {
@@ -923,7 +931,7 @@ def api_upload_video():
                     'progress': 100,
                     'message': '切り抜き動画が完成しました！',
                     'output_file': str(combined_path),
-                    'subtitle_file': str(subtitle_path),
+                    'subtitle_file': str(subtitle_path) if subtitle_path else None,
                     'video_id': video_id,
                     'download_url': f'/api/download/{video_id}'
                 }
