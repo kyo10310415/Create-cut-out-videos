@@ -8,6 +8,7 @@ ffmpeg-python==0.2.0
 
 # Audio/Speech recognition (for subtitles)
 openai-whisper==20231117
+numpy<2.0.0  # Whisper は NumPy 1.x が必要
 # torch と torchaudio は Dockerfile で CPU版をインストール
 
 # Subtitle generation
