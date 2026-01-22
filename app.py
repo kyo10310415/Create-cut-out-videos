@@ -926,6 +926,11 @@ def api_upload_video():
                     subtitle_path = None
                 
                 # 完了
+                print(f"✅ 切り抜き動画が完成しました！")
+                print(f"   動画: {combined_path}")
+                print(f"   字幕: {subtitle_path}")
+                print(f"   ダウンロードURL: /api/download/{video_id}")
+                
                 job_results[job_id] = {
                     'status': 'completed',
                     'progress': 100,
