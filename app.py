@@ -447,6 +447,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 🔄 新しい動画を処理
             </button>
         </div>
+        
+        <!-- ジョブ履歴 -->
+        <div class="card" id="job-history-card">
+            <h2>📋 ジョブ履歴</h2>
+            <p style="margin-bottom: 20px; color: #666;">
+                過去に処理した動画の履歴とダウンロード
+            </p>
+            
+            <div id="job-history-list" style="margin-top: 20px;">
+                <div style="text-align: center; color: #999;">
+                    読み込み中...
+                </div>
+            </div>
+        </div>
     </div>
     
     <script>
@@ -723,6 +737,81 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             const s = seconds % 60;
             return `${m}:${String(s).padStart(2, '0')}`;
         }
+        
+        // ジョブ履歴の取得と表示
+        async function loadJobHistory() {
+            try {
+                const response = await fetch('/api/jobs');
+                const data = await response.json();
+                
+                if (data.success && data.jobs) {
+                    displayJobHistory(data.jobs);
+                } else {
+                    document.getElementById('job-history-list').innerHTML = 
+                        '<div style="text-align: center; color: #999;">履歴がありません</div>';
+                }
+            } catch (error) {
+                console.error('ジョブ履歴の取得エラー:', error);
+                document.getElementById('job-history-list').innerHTML = 
+                    '<div style="text-align: center; color: #e74c3c;">エラーが発生しました</div>';
+            }
+        }
+        
+        function displayJobHistory(jobs) {
+            const container = document.getElementById('job-history-list');
+            
+            if (jobs.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #999;">履歴がありません</div>';
+                return;
+            }
+            
+            let html = '';
+            
+            // 完了したジョブのみ表示
+            const completedJobs = jobs.filter(job => job.status === 'completed');
+            
+            if (completedJobs.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #999;">完了したジョブがありません</div>';
+                return;
+            }
+            
+            completedJobs.forEach((job, index) => {
+                const date = job.completed_at ? new Date(job.completed_at).toLocaleString('ja-JP') : '不明';
+                const videoId = job.video_id || '不明';
+                
+                html += `
+                    <div style="border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="flex: 1;">
+                                <strong>動画ID:</strong> ${videoId}<br>
+                                <small style="color: #666;">完了: ${date}</small>
+                            </div>
+                            <button 
+                                class="btn download-btn" 
+                                onclick="downloadJobVideo('${videoId}')"
+                                style="margin-left: 10px; padding: 8px 16px; font-size: 0.9em;"
+                            >
+                                💾 ダウンロード
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        function downloadJobVideo(videoId) {
+            window.location.href = `/api/download/${videoId}`;
+        }
+        
+        // ページ読み込み時にジョブ履歴を取得
+        window.addEventListener('DOMContentLoaded', function() {
+            loadJobHistory();
+            
+            // 10秒ごとにジョブ履歴を更新
+            setInterval(loadJobHistory, 10000);
+        });
     </script>
 </body>
 </html>
