@@ -242,9 +242,11 @@ class YouTubeClipperPipeline:
                 )
             
             # 見どころ検出
+            skip_start_seconds = int(os.getenv('SKIP_START_SECONDS', '120'))  # デフォルト2分
             highlights = self.analytics_processor.detect_highlights(
                 highlight_scores,
-                target_duration=self.config['clip_duration_target']
+                target_duration=self.config['clip_duration_target'],
+                skip_start_seconds=skip_start_seconds
             )
             
             self.logger.info(f"検出された見どころ: {len(highlights)}個")
@@ -476,12 +478,14 @@ class YouTubeClipperPipeline:
                 # 動画の長さに関わらず、常に設定値（デフォルト10分）を使用
                 target_duration = self.config['clip_duration_target']  # 環境変数の値を使用
                 max_segments = min(10, max(5, target_duration // 60))  # 目標時間に応じた見どころ数
+                skip_start_seconds = int(os.getenv('SKIP_START_SECONDS', '120'))  # デフォルト2分
                 
                 highlights = self.analytics_processor.detect_highlights(
                     highlight_scores=highlight_scores,
                     target_duration=target_duration,
                     min_segment_duration=30,
-                    max_segment_duration=90  # 120 → 90秒に短縮
+                    max_segment_duration=90,  # 120 → 90秒に短縮
+                    skip_start_seconds=skip_start_seconds
                 )
             
             self.logger.info(f"検出された見どころ: {len(highlights)}個")

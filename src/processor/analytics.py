@@ -256,7 +256,8 @@ class AnalyticsProcessor:
         highlight_scores: Dict[int, float],
         target_duration: int = 600,  # 10分
         min_segment_duration: int = 30,  # 最小セグメント長（秒）
-        max_segment_duration: int = 90  # 最大セグメント長（秒）- 90秒に短縮
+        max_segment_duration: int = 90,  # 最大セグメント長（秒）- 90秒に短縮
+        skip_start_seconds: int = 120  # 開始何秒をスキップするか（デフォルト120秒=2分）
     ) -> List[Tuple[int, int, float]]:
         """
         見どころ区間を検出
@@ -266,12 +267,26 @@ class AnalyticsProcessor:
             target_duration: 目標の総時間（秒）
             min_segment_duration: 最小セグメント長（秒）
             max_segment_duration: 最大セグメント長（秒）
+            skip_start_seconds: 開始何秒をスキップするか（視聴維持率が高い開始部分を除外）
             
         Returns:
             [(開始秒, 終了秒, スコア)] のリスト
         """
         if not highlight_scores:
             return []
+        
+        # 開始部分をスキップ（視聴維持率が必然的に高いため）
+        if skip_start_seconds > 0:
+            print(f"⏭️ 開始 {skip_start_seconds}秒（{skip_start_seconds//60}分）をスキップします（視聴維持率が高いため）")
+            highlight_scores = {
+                timestamp: score 
+                for timestamp, score in highlight_scores.items() 
+                if timestamp >= skip_start_seconds
+            }
+            
+            if not highlight_scores:
+                print(f"⚠️ 開始 {skip_start_seconds}秒をスキップした結果、スコアがありません")
+                return []
         
         # スコアが閾値以上の区間を抽出
         sorted_timestamps = sorted(highlight_scores.keys())
