@@ -946,22 +946,29 @@ def api_upload_video():
                 print(f"✅ 動画結合完了: {combined_path}")
                 print(f"   ファイルサイズ: {file_size_mb:.2f} MB")
                 
-                # 字幕生成
-                job_results[job_id]['message'] = '字幕を生成中...'
-                job_results[job_id]['progress'] = 80
+                # 字幕生成（オプション：環境変数で制御）
+                enable_subtitles = os.getenv('ENABLE_SUBTITLES', 'false').lower() == 'true'
                 
-                subtitle_gen = SubtitleGenerator()
-                subtitle_path = app.config['OUTPUT_FOLDER'] / f"{video_id}_highlight.srt"
-                
-                # 音声認識で字幕を生成（結合動画のみ）
-                print(f"🎤 音声認識を開始: {combined_path}")
-                segments = subtitle_gen.transcribe_audio(str(combined_path), model='base', language='ja')
-                if segments:
-                    subtitle_gen.generate_srt(segments, str(subtitle_path))
-                    print(f"字幕生成完了: {subtitle_path}")
+                if enable_subtitles:
+                    job_results[job_id]['message'] = '字幕を生成中...'
+                    job_results[job_id]['progress'] = 80
+                    
+                    subtitle_gen = SubtitleGenerator()
+                    subtitle_path = app.config['OUTPUT_FOLDER'] / f"{video_id}_highlight.srt"
+                    
+                    # 音声認識で字幕を生成（結合動画のみ）
+                    print(f"🎤 音声認識を開始: {combined_path}")
+                    segments = subtitle_gen.transcribe_audio(str(combined_path), model='base', language='ja')
+                    if segments:
+                        subtitle_gen.generate_srt(segments, str(subtitle_path))
+                        print(f"字幕生成完了: {subtitle_path}")
+                    else:
+                        print("字幕生成をスキップ（音声認識失敗）")
+                        subtitle_path = None
                 else:
-                    print("字幕生成をスキップ（音声認識失敗）")
+                    print("⏭️ 字幕生成をスキップ（環境変数 ENABLE_SUBTITLES=false）")
                     subtitle_path = None
+                    job_results[job_id]['progress'] = 80
                 
                 # 完了
                 print(f"✅ 切り抜き動画が完成しました！")
