@@ -60,5 +60,5 @@ services:
       - key: AUTO_RUN_ENABLED
         value: false
       - key: ENABLE_SUBTITLES
-        value: false
+        value: true
 

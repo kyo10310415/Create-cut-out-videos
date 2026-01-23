@@ -951,7 +951,7 @@ def api_upload_video():
                 
                 if enable_subtitles:
                     job_results[job_id]['message'] = '字幕を生成中...'
-                    job_results[job_id]['progress'] = 80
+                    job_results[job_id]['progress'] = 70
                     
                     subtitle_gen = SubtitleGenerator()
                     subtitle_path = app.config['OUTPUT_FOLDER'] / f"{video_id}_highlight.srt"
@@ -961,14 +961,34 @@ def api_upload_video():
                     segments = subtitle_gen.transcribe_audio(str(combined_path), model='base', language='ja')
                     if segments:
                         subtitle_gen.generate_srt(segments, str(subtitle_path))
-                        print(f"字幕生成完了: {subtitle_path}")
+                        print(f"✅ 字幕生成完了: {subtitle_path}")
+                        
+                        # 字幕を動画に焼き込む
+                        job_results[job_id]['message'] = '字幕を動画に焼き込み中...'
+                        job_results[job_id]['progress'] = 85
+                        
+                        burned_path = app.config['OUTPUT_FOLDER'] / f"{video_id}_highlight_burned.mp4"
+                        print(f"🔥 字幕焼き込みを開始: {combined_path} -> {burned_path}")
+                        
+                        result = subtitle_gen.burn_subtitles(
+                            str(combined_path),
+                            str(subtitle_path),
+                            str(burned_path)
+                        )
+                        
+                        if result:
+                            print(f"✅ 字幕焼き込み完了: {burned_path}")
+                            # 焼き込み動画を最終出力として使用
+                            combined_path = burned_path
+                        else:
+                            print("⚠️ 字幕焼き込み失敗（字幕ファイルのみ提供）")
                     else:
-                        print("字幕生成をスキップ（音声認識失敗）")
+                        print("⚠️ 字幕生成をスキップ（音声認識失敗）")
                         subtitle_path = None
                 else:
                     print("⏭️ 字幕生成をスキップ（環境変数 ENABLE_SUBTITLES=false）")
                     subtitle_path = None
-                    job_results[job_id]['progress'] = 80
+                    job_results[job_id]['progress'] = 85
                 
                 # 完了
                 print(f"✅ 切り抜き動画が完成しました！")
@@ -1100,24 +1120,32 @@ def api_job_cancel(job_id):
 
 @app.route('/api/download/<video_id>', methods=['GET'])
 def api_download(video_id):
-    """完成した動画をダウンロード"""
+    """完成した動画をダウンロード（字幕焼き込み版を優先）"""
     try:
+        # 字幕焼き込み版を優先
+        burned_path = app.config['OUTPUT_FOLDER'] / f"{video_id}_highlight_burned.mp4"
         video_path = app.config['OUTPUT_FOLDER'] / f"{video_id}_highlight.mp4"
         
-        if not video_path.exists():
+        # 字幕焼き込み版が存在すればそれを返す
+        if burned_path.exists():
+            video_path = burned_path
+            filename = f"{video_id}_highlight_burned.mp4"
+            print(f"📥 ダウンロード要求: {filename}（字幕焼き込み版）")
+        elif video_path.exists():
+            filename = f"{video_id}_highlight.mp4"
+            print(f"📥 ダウンロード要求: {filename}（標準版）")
+        else:
             return jsonify({'success': False, 'error': 'ファイルが見つかりません'}), 404
         
         # デバッグ情報
         file_size_mb = video_path.stat().st_size / (1024 * 1024)
-        print(f"📥 ダウンロード要求: {video_id}_highlight.mp4")
         print(f"   ファイルパス: {video_path}")
         print(f"   ファイルサイズ: {file_size_mb:.2f} MB")
-        print(f"   存在確認: {video_path.exists()}")
         
         return send_file(
             str(video_path),
             as_attachment=True,
-            download_name=f"{video_id}_highlight.mp4",
+            download_name=filename,
             mimetype='video/mp4'
         )
     
