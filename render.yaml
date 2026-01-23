@@ -61,6 +61,8 @@ services:
         value: false
       - key: ENABLE_SUBTITLES
         value: true
+        sync: true  # 強制的にyamlの値を使用
       - key: SKIP_START_SECONDS
         value: 120
+        sync: true  # 強制的にyamlの値を使用
 
