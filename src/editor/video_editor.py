@@ -494,10 +494,11 @@ class VideoEditor:
         output_file: str,
         duration: int = 5,
         resolution: str = '1920x1080',
-        fps: int = 30
+        fps: int = 30,
+        background_image: Optional[str] = None
     ) -> Optional[str]:
         """
-        オープニングタイトル画面を生成
+        オープニングタイトル画面を生成（無音の音声トラック付き）
         
         Args:
             title: 動画タイトル
@@ -505,6 +506,7 @@ class VideoEditor:
             duration: タイトル表示時間（秒）
             resolution: 解像度
             fps: フレームレート
+            background_image: 背景画像パス（Noneの場合はグラデーション）
             
         Returns:
             出力ファイルパスまたはNone
@@ -512,38 +514,114 @@ class VideoEditor:
         try:
             print(f"🎬 オープニングタイトルを生成中: {title}")
             
-            # タイトルをエスケープ（FFmpegのテキストフィルタ用）
-            escaped_title = title.replace("'", "\\'").replace(":", "\\:")
+            # フォントパスを設定（プロジェクト内のフォントを優先）
+            font_paths = [
+                '/home/user/webapp/assets/fonts/NotoSansJP-Bold.ttf',  # プロジェクト内
+                '/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc',  # システムフォント
+                '/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc',  # 代替パス
+            ]
+            fontfile = None
+            for path in font_paths:
+                if os.path.exists(path):
+                    fontfile = path
+                    break
+            if not fontfile:
+                raise Exception("日本語フォントが見つかりません")
             
-            # 豪華なグラデーション背景+タイトル
-            # 背景: 紫から青のグラデーション（VTuber/ゲーム実況っぽい）
-            # テキスト: 白文字+黒縁+影
-            subprocess.run([
-                'ffmpeg',
-                '-f', 'lavfi',
-                '-i', f'color=c=#667eea:s={resolution}:d={duration}:r={fps}',
-                '-f', 'lavfi',
-                '-i', f'color=c=#764ba2:s={resolution}:d={duration}:r={fps}',
-                '-filter_complex',
-                f"[0:v][1:v]blend=all_expr='A*(1-Y/{resolution.split('x')[1]})+B*Y/{resolution.split('x')[1]}'[bg];"
-                f"[bg]drawtext="
-                f"text='{escaped_title}':"
-                f"fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-                f"fontsize=72:"
-                f"fontcolor=white:"
-                f"borderw=4:"
-                f"bordercolor=black:"
-                f"x=(w-text_w)/2:"
-                f"y=(h-text_h)/2:"
-                f"shadowcolor=black@0.5:"
-                f"shadowx=4:"
-                f"shadowy=4",
-                '-t', str(duration),
-                '-c:v', 'libx264',
-                '-pix_fmt', 'yuv420p',
-                '-y',
-                output_file
-            ], capture_output=True, check=True)
+            # 長いタイトルを自動改行（25文字ごと、区切り文字優先）
+            lines = []
+            current_line = ""
+            for char in title:
+                current_line += char
+                # 25文字に達し、かつ区切り文字の場合に改行
+                if len(current_line) >= 25 and char in ['、', '。', '！', '？', ' ', '】', '）', '」']:
+                    lines.append(current_line.strip())
+                    current_line = ""
+            if current_line:
+                lines.append(current_line.strip())
+            
+            # 最大3行に制限
+            if len(lines) > 3:
+                # 無理やり3行に収める
+                lines = [
+                    title[:len(title)//3],
+                    title[len(title)//3:2*len(title)//3],
+                    title[2*len(title)//3:]
+                ]
+            
+            # 改行されたタイトル
+            multiline_title = "\\n".join(lines)
+            # FFmpegのテキストフィルタ用にエスケープ
+            escaped_title = multiline_title.replace("'", "'\\''").replace(":", "\\:").replace("%", "\\%").replace(",", "\\,")
+            
+            if background_image and os.path.exists(background_image):
+                # 背景画像を使用
+                print(f"📷 背景画像を使用: {background_image}")
+                subprocess.run([
+                    'ffmpeg',
+                    '-loop', '1',
+                    '-i', background_image,
+                    '-f', 'lavfi',
+                    '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100:d={duration}',
+                    '-filter_complex',
+                    f"[0:v]scale={resolution},setsar=1[bg];"
+                    f"[bg]drawtext="
+                    f"text='{escaped_title}':"
+                    f"fontfile={fontfile}:"
+                    f"fontsize=72:"
+                    f"fontcolor=white:"
+                    f"borderw=6:"
+                    f"bordercolor=black:"
+                    f"x=(w-text_w)/2:"
+                    f"y=(h-text_h)/2:"
+                    f"line_spacing=20:"
+                    f"shadowcolor=black@0.8:"
+                    f"shadowx=6:"
+                    f"shadowy=6",
+                    '-map', '0:v',
+                    '-map', '1:a',
+                    '-t', str(duration),
+                    '-c:v', 'libx264',
+                    '-c:a', 'aac',
+                    '-pix_fmt', 'yuv420p',
+                    '-y',
+                    output_file
+                ], capture_output=True, check=True)
+            else:
+                # グラデーション背景を使用
+                print(f"🎨 グラデーション背景を使用")
+                subprocess.run([
+                    'ffmpeg',
+                    '-f', 'lavfi',
+                    '-i', f'color=c=#667eea:s={resolution}:d={duration}:r={fps}',
+                    '-f', 'lavfi',
+                    '-i', f'color=c=#764ba2:s={resolution}:d={duration}:r={fps}',
+                    '-f', 'lavfi',
+                    '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100:d={duration}',
+                    '-filter_complex',
+                    f"[0:v][1:v]blend=all_expr='A*(1-Y/{resolution.split('x')[1]})+B*Y/{resolution.split('x')[1]}'[bg];"
+                    f"[bg]drawtext="
+                    f"text='{escaped_title}':"
+                    f"fontfile={fontfile}:"
+                    f"fontsize=72:"
+                    f"fontcolor=white:"
+                    f"borderw=6:"
+                    f"bordercolor=black:"
+                    f"x=(w-text_w)/2:"
+                    f"y=(h-text_h)/2:"
+                    f"line_spacing=20:"
+                    f"shadowcolor=black@0.8:"
+                    f"shadowx=6:"
+                    f"shadowy=6",
+                    '-map', '[bg]',
+                    '-map', '2:a',
+                    '-t', str(duration),
+                    '-c:v', 'libx264',
+                    '-c:a', 'aac',
+                    '-pix_fmt', 'yuv420p',
+                    '-y',
+                    output_file
+                ], capture_output=True, check=True)
             
             if os.path.exists(output_file):
                 print(f"✅ オープニングタイトル生成完了: {output_file}")

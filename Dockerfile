@@ -20,6 +20,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # アプリケーションコードをコピー
 COPY . .
 
+# アセット（フォント・画像）をコピー（必須）
+COPY assets /app/assets
+
 # ディレクトリを作成
 RUN mkdir -p downloads temp output logs config
 

@@ -1023,11 +1023,19 @@ def api_upload_video():
                 title_path = temp_dir / f"{video_id}_title.mp4"
                 video_title = highlight_data.get('video_title', 'YouTube切り抜き動画')
                 
+                # 背景画像パス（プロジェクト内のアセット）
+                background_image_path = '/app/assets/opening_background.jpg'
+                if not os.path.exists(background_image_path):
+                    # ローカル開発環境用のパス
+                    background_image_path = '/home/user/webapp/assets/opening_background.jpg'
+                
                 print(f"🎬 オープニングタイトルを生成: {video_title}")
+                print(f"📷 背景画像: {background_image_path}")
                 title_result = video_editor.create_opening_title(
                     title=video_title,
                     output_file=str(title_path),
-                    duration=5  # 5秒間表示
+                    duration=5,  # 5秒間表示
+                    background_image=background_image_path if os.path.exists(background_image_path) else None
                 )
                 
                 if title_result and title_path.exists():
