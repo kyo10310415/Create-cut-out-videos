@@ -66,15 +66,18 @@ class VideoEditor:
         duration = end_time - start_time
         
         try:
-            # FFmpegでクリップ抽出（ストリームコピー = 高速・無劣化）
-            # 注意: キーフレーム位置によって正確な時刻にならない可能性あり
+            # FFmpegでクリップ抽出（再エンコードで確実に処理）
+            # ストリームコピーは高速だがエラーが発生しやすいため、再エンコードを使用
             (
                 ffmpeg
                 .input(input_video, ss=start_time, t=duration)
                 .output(
                     output_file,
-                    vcodec='copy',  # ストリームコピー（再エンコードなし）
-                    acodec='copy',  # ストリームコピー（再エンコードなし）
+                    vcodec='libx264',
+                    acodec='aac',
+                    video_bitrate=self.video_bitrate,
+                    audio_bitrate=self.audio_bitrate,
+                    preset='fast'  # fast で高速化
                 )
                 .overwrite_output()
                 .run(capture_stdout=True, capture_stderr=True, quiet=True)
@@ -84,28 +87,7 @@ class VideoEditor:
             return output_file
         except ffmpeg.Error as e:
             print(f"❌ クリップ抽出エラー ({start_time}-{end_time}): {e.stderr.decode()}")
-            # ストリームコピーが失敗した場合は再エンコード
-            print(f"⚠️ ストリームコピー失敗、再エンコードで再試行...")
-            try:
-                (
-                    ffmpeg
-                    .input(input_video, ss=start_time, t=duration)
-                    .output(
-                        output_file,
-                        vcodec='libx264',
-                        acodec='aac',
-                        video_bitrate=self.video_bitrate,
-                        audio_bitrate=self.audio_bitrate,
-                        preset='fast'  # medium → fast で高速化
-                    )
-                    .overwrite_output()
-                    .run(capture_stdout=True, capture_stderr=True, quiet=True)
-                )
-                print(f"✓ クリップ抽出完了（再エンコード）: {output_file} ({start_time}-{end_time}秒)")
-                return output_file
-            except ffmpeg.Error as e2:
-                print(f"❌ 再エンコードも失敗: {e2.stderr.decode()}")
-                return None
+            return None
     
     def extract_segments(
         self,
@@ -203,37 +185,22 @@ class VideoEditor:
                 # トランジション付き結合（処理時間が長い）
                 return self._concatenate_with_transitions(video_files, output_file)
             else:
-                # シンプルな結合（ストリームコピー = 高速・無劣化）
-                print(f"🎬 FFmpeg で結合を開始（ストリームコピーモード）...")
-                try:
-                    (
-                        ffmpeg
-                        .input(concat_file, format='concat', safe=0)
-                        .output(
-                            output_file,
-                            c='copy'  # ストリームコピー（再エンコードなし）
-                        )
-                        .overwrite_output()
-                        .run(capture_stdout=True, capture_stderr=True, quiet=True)
+                # 再エンコードで確実に結合（品質と安定性を優先）
+                print(f"🎬 FFmpeg で結合を開始（再エンコードモード）...")
+                (
+                    ffmpeg
+                    .input(concat_file, format='concat', safe=0)
+                    .output(
+                        output_file,
+                        vcodec='libx264',
+                        acodec='aac',
+                        video_bitrate=self.video_bitrate,
+                        audio_bitrate=self.audio_bitrate,
+                        preset='fast'  # fast で高速化
                     )
-                except ffmpeg.Error as e:
-                    # ストリームコピーが失敗した場合は再エンコード
-                    print(f"⚠️ ストリームコピー失敗、再エンコードで再試行...")
-                    print(f"   エラー: {e.stderr.decode()[:200]}")
-                    (
-                        ffmpeg
-                        .input(concat_file, format='concat', safe=0)
-                        .output(
-                            output_file,
-                            vcodec='libx264',
-                            acodec='aac',
-                            video_bitrate=self.video_bitrate,
-                            audio_bitrate=self.audio_bitrate,
-                            preset='fast'  # medium → fast で高速化
-                        )
-                        .overwrite_output()
-                        .run(capture_stdout=True, capture_stderr=True, quiet=True)
-                    )
+                    .overwrite_output()
+                    .run(capture_stdout=True, capture_stderr=True, quiet=True)
+                )
             
             # 結合結果を確認
             if os.path.exists(output_file):
