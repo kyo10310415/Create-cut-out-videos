@@ -13,6 +13,8 @@ import threading
 import queue
 import tempfile
 import uuid
+import json
+from datetime import datetime
 
 # プロジェクトルートをPythonパスに追加
 project_root = Path(__file__).parent
@@ -31,12 +33,35 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 * 1024  # 2GB
 app.config['UPLOAD_FOLDER'] = Path(tempfile.gettempdir()) / 'youtube_clipper_uploads'
 app.config['OUTPUT_FOLDER'] = Path(tempfile.gettempdir()) / 'youtube_clipper_outputs'
+app.config['JOB_HISTORY_FILE'] = Path(tempfile.gettempdir()) / 'youtube_clipper_job_history.json'
 app.config['UPLOAD_FOLDER'].mkdir(parents=True, exist_ok=True)
 app.config['OUTPUT_FOLDER'].mkdir(parents=True, exist_ok=True)
 
 # 処理キュー（非同期処理用）
 job_queue = queue.Queue()
 job_results = {}
+
+# ジョブ履歴をロード
+def load_job_history():
+    """ジョブ履歴をJSONファイルから読み込む"""
+    try:
+        if app.config['JOB_HISTORY_FILE'].exists():
+            with open(app.config['JOB_HISTORY_FILE'], 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"ジョブ履歴の読み込みに失敗: {e}")
+    return {}
+
+def save_job_history():
+    """ジョブ履歴をJSONファイルに保存"""
+    try:
+        with open(app.config['JOB_HISTORY_FILE'], 'w', encoding='utf-8') as f:
+            json.dump(job_results, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"ジョブ履歴の保存に失敗: {e}")
+
+# 起動時にジョブ履歴をロード
+job_results = load_job_history()
 
 # ハイライトキャッシュ
 if not hasattr(app, 'highlight_cache'):
@@ -862,8 +887,11 @@ def api_upload_video():
                 job_results[job_id] = {
                     'status': 'processing',
                     'progress': 0,
-                    'message': '処理を開始しています...'
+                    'message': '処理を開始しています...',
+                    'video_id': video_id,
+                    'created_at': datetime.now().isoformat()
                 }
+                save_job_history()  # 初期状態を保存
                 
                 # 動画編集の準備
                 video_editor = VideoEditor(
@@ -938,8 +966,12 @@ def api_upload_video():
                     'output_file': str(combined_path),
                     'subtitle_file': str(subtitle_path) if subtitle_path else None,
                     'video_id': video_id,
-                    'download_url': f'/api/download/{video_id}'
+                    'download_url': f'/api/download/{video_id}',
+                    'completed_at': datetime.now().isoformat()
                 }
+                
+                # ジョブ履歴を保存
+                save_job_history()
                 
                 # アップロードファイルを削除
                 upload_path.unlink(missing_ok=True)
@@ -952,8 +984,11 @@ def api_upload_video():
                 job_results[job_id] = {
                     'status': 'failed',
                     'progress': 0,
-                    'message': f'エラー: {str(e)}'
+                    'message': f'エラー: {str(e)}',
+                    'failed_at': datetime.now().isoformat()
                 }
+                # ジョブ履歴を保存
+                save_job_history()
         
         # バックグラウンドスレッドで処理を開始
         thread = threading.Thread(target=process_video_job)
@@ -979,6 +1014,29 @@ def api_job_status(job_id):
         'success': True,
         **job_results[job_id]
     })
+
+
+@app.route('/api/jobs', methods=['GET'])
+def api_jobs():
+    """全ジョブの履歴を取得"""
+    try:
+        # ジョブをリスト形式で返す（新しい順）
+        jobs_list = []
+        for job_id, job_data in sorted(job_results.items(), 
+                                       key=lambda x: x[1].get('completed_at', x[1].get('failed_at', '')), 
+                                       reverse=True):
+            jobs_list.append({
+                'job_id': job_id,
+                **job_data
+            })
+        
+        return jsonify({
+            'success': True,
+            'jobs': jobs_list,
+            'total': len(jobs_list)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/job-cancel/<job_id>', methods=['POST'])
