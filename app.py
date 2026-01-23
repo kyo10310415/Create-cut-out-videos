@@ -969,6 +969,29 @@ def api_upload_video():
                 print(f"   字幕: {subtitle_path}")
                 print(f"   ダウンロードURL: /api/download/{video_id}")
                 
+                # ファイル詳細を確認
+                if combined_path.exists():
+                    import subprocess
+                    file_size_mb = combined_path.stat().st_size / (1024 * 1024)
+                    print(f"📊 結合動画の詳細:")
+                    print(f"   ファイルサイズ: {file_size_mb:.2f} MB")
+                    
+                    # ffprobe で動画の長さを確認
+                    try:
+                        result = subprocess.run(
+                            ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', 
+                             '-of', 'default=noprint_wrappers=1:nokey=1', str(combined_path)],
+                            capture_output=True, text=True, timeout=10
+                        )
+                        duration_sec = float(result.stdout.strip())
+                        duration_min = int(duration_sec // 60)
+                        duration_sec_remainder = int(duration_sec % 60)
+                        print(f"   動画の長さ: {duration_min}分{duration_sec_remainder}秒（{duration_sec:.1f}秒）")
+                    except Exception as e:
+                        print(f"   動画の長さ: 確認できませんでした（{e}）")
+                else:
+                    print(f"⚠️ 警告: 結合動画が見つかりません: {combined_path}")
+                
                 job_results[job_id] = {
                     'status': 'completed',
                     'progress': 100,
@@ -1077,6 +1100,13 @@ def api_download(video_id):
         if not video_path.exists():
             return jsonify({'success': False, 'error': 'ファイルが見つかりません'}), 404
         
+        # デバッグ情報
+        file_size_mb = video_path.stat().st_size / (1024 * 1024)
+        print(f"📥 ダウンロード要求: {video_id}_highlight.mp4")
+        print(f"   ファイルパス: {video_path}")
+        print(f"   ファイルサイズ: {file_size_mb:.2f} MB")
+        print(f"   存在確認: {video_path.exists()}")
+        
         return send_file(
             str(video_path),
             as_attachment=True,
@@ -1085,6 +1115,7 @@ def api_download(video_id):
         )
     
     except Exception as e:
+        print(f"❌ ダウンロードエラー: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
