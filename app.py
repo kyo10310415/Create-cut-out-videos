@@ -1016,6 +1016,27 @@ def api_upload_video():
                 if not clips:
                     raise Exception("クリップ生成に失敗しました")
                 
+                # オープニングタイトルを生成
+                job_results[job_id]['message'] = 'オープニングタイトルを生成中...'
+                job_results[job_id]['progress'] = 55
+                
+                title_path = temp_dir / f"{video_id}_title.mp4"
+                video_title = highlight_data.get('video_title', 'YouTube切り抜き動画')
+                
+                print(f"🎬 オープニングタイトルを生成: {video_title}")
+                title_result = video_editor.create_opening_title(
+                    title=video_title,
+                    output_file=str(title_path),
+                    duration=5  # 5秒間表示
+                )
+                
+                if title_result and title_path.exists():
+                    # タイトルをクリップの先頭に追加
+                    clips.insert(0, str(title_path))
+                    print(f"✅ オープニングタイトルを追加: {title_path}")
+                else:
+                    print(f"⚠️ オープニングタイトルの生成に失敗（スキップ）")
+                
                 # クリップを結合
                 job_results[job_id]['message'] = 'クリップを結合中...'
                 job_results[job_id]['progress'] = 60

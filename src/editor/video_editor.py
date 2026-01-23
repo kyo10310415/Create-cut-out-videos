@@ -487,6 +487,77 @@ class VideoEditor:
         except ffmpeg.Error as e:
             print(f"速度変更エラー: {e.stderr.decode()}")
             return None
+    
+    def create_opening_title(
+        self,
+        title: str,
+        output_file: str,
+        duration: int = 5,
+        resolution: str = '1920x1080',
+        fps: int = 30
+    ) -> Optional[str]:
+        """
+        オープニングタイトル画面を生成
+        
+        Args:
+            title: 動画タイトル
+            output_file: 出力ファイルパス
+            duration: タイトル表示時間（秒）
+            resolution: 解像度
+            fps: フレームレート
+            
+        Returns:
+            出力ファイルパスまたはNone
+        """
+        try:
+            print(f"🎬 オープニングタイトルを生成中: {title}")
+            
+            # タイトルをエスケープ（FFmpegのテキストフィルタ用）
+            escaped_title = title.replace("'", "\\'").replace(":", "\\:")
+            
+            # 豪華なグラデーション背景+タイトル
+            # 背景: 紫から青のグラデーション（VTuber/ゲーム実況っぽい）
+            # テキスト: 白文字+黒縁+影
+            subprocess.run([
+                'ffmpeg',
+                '-f', 'lavfi',
+                '-i', f'color=c=#667eea:s={resolution}:d={duration}:r={fps}',
+                '-f', 'lavfi',
+                '-i', f'color=c=#764ba2:s={resolution}:d={duration}:r={fps}',
+                '-filter_complex',
+                f"[0:v][1:v]blend=all_expr='A*(1-Y/{resolution.split('x')[1]})+B*Y/{resolution.split('x')[1]}'[bg];"
+                f"[bg]drawtext="
+                f"text='{escaped_title}':"
+                f"fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+                f"fontsize=72:"
+                f"fontcolor=white:"
+                f"borderw=4:"
+                f"bordercolor=black:"
+                f"x=(w-text_w)/2:"
+                f"y=(h-text_h)/2:"
+                f"shadowcolor=black@0.5:"
+                f"shadowx=4:"
+                f"shadowy=4",
+                '-t', str(duration),
+                '-c:v', 'libx264',
+                '-pix_fmt', 'yuv420p',
+                '-y',
+                output_file
+            ], capture_output=True, check=True)
+            
+            if os.path.exists(output_file):
+                print(f"✅ オープニングタイトル生成完了: {output_file}")
+                return output_file
+            else:
+                print(f"❌ オープニングタイトルの生成に失敗: {output_file}")
+                return None
+                
+        except subprocess.CalledProcessError as e:
+            print(f"❌ オープニングタイトル生成エラー: {e.stderr.decode()}")
+            return None
+        except Exception as e:
+            print(f"❌ オープニングタイトル生成エラー: {e}")
+            return None
 
 
 if __name__ == '__main__':
