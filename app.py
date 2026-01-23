@@ -932,10 +932,19 @@ def api_upload_video():
                 job_results[job_id]['progress'] = 60
                 
                 combined_path = app.config['OUTPUT_FOLDER'] / f"{video_id}_highlight.mp4"
+                print(f"🎬 動画結合を開始: {len(clips)}個のクリップ → {combined_path}")
                 result = video_editor.concatenate_videos(clips, str(combined_path))
                 
                 if not result:
                     raise Exception("クリップ結合に失敗しました")
+                
+                # 結合された動画のサイズと存在を確認
+                if not combined_path.exists():
+                    raise Exception(f"結合動画が見つかりません: {combined_path}")
+                
+                file_size_mb = combined_path.stat().st_size / (1024 * 1024)
+                print(f"✅ 動画結合完了: {combined_path}")
+                print(f"   ファイルサイズ: {file_size_mb:.2f} MB")
                 
                 # 字幕生成
                 job_results[job_id]['message'] = '字幕を生成中...'
@@ -944,7 +953,8 @@ def api_upload_video():
                 subtitle_gen = SubtitleGenerator()
                 subtitle_path = app.config['OUTPUT_FOLDER'] / f"{video_id}_highlight.srt"
                 
-                # 音声認識で字幕を生成
+                # 音声認識で字幕を生成（結合動画のみ）
+                print(f"🎤 音声認識を開始: {combined_path}")
                 segments = subtitle_gen.transcribe_audio(str(combined_path), model='base', language='ja')
                 if segments:
                     subtitle_gen.generate_srt(segments, str(subtitle_path))

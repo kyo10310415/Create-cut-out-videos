@@ -161,6 +161,14 @@ class VideoEditor:
             print("結合する動画がありません")
             return None
         
+        print(f"📹 結合する動画: {len(video_files)}個")
+        for i, vf in enumerate(video_files, 1):
+            if os.path.exists(vf):
+                size_mb = os.path.getsize(vf) / (1024 * 1024)
+                print(f"   {i}. {os.path.basename(vf)} ({size_mb:.2f} MB)")
+            else:
+                print(f"   {i}. {os.path.basename(vf)} (❌ ファイルが見つかりません)")
+        
         # concat demuxerを使用（高速）
         concat_file = os.path.join(self.temp_dir, 'concat_list.txt')
         
@@ -170,12 +178,15 @@ class VideoEditor:
                 escaped_path = video_file.replace("'", "'\\''")
                 f.write(f"file '{escaped_path}'\n")
         
+        print(f"📝 concat_list.txt を作成: {concat_file}")
+        
         try:
             if add_transitions:
                 # トランジション付き結合（処理時間が長い）
                 return self._concatenate_with_transitions(video_files, output_file)
             else:
                 # シンプルな結合（高速）
+                print(f"🎬 FFmpeg で結合を開始...")
                 (
                     ffmpeg
                     .input(concat_file, format='concat', safe=0)
@@ -191,10 +202,17 @@ class VideoEditor:
                     .run(capture_stdout=True, capture_stderr=True, quiet=True)
                 )
             
-            print(f"動画結合完了: {output_file}")
+            # 結合結果を確認
+            if os.path.exists(output_file):
+                size_mb = os.path.getsize(output_file) / (1024 * 1024)
+                print(f"✅ 動画結合完了: {output_file} ({size_mb:.2f} MB)")
+            else:
+                print(f"❌ 結合動画が作成されませんでした: {output_file}")
+                return None
+            
             return output_file
         except ffmpeg.Error as e:
-            print(f"動画結合エラー: {e.stderr.decode()}")
+            print(f"❌ 動画結合エラー: {e.stderr.decode()}")
             return None
     
     def _concatenate_with_transitions(
