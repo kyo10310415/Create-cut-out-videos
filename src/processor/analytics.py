@@ -389,11 +389,49 @@ class AnalyticsProcessor:
         # スコアでソートして上位を選択
         candidate_segments.sort(key=lambda x: x[2], reverse=True)
         
+        # 重複する時間帯の検出と除去
+        def has_overlap(seg1, seg2, min_overlap_seconds=30):
+            """
+            2つのセグメントが重複しているかチェック
+            
+            Args:
+                seg1, seg2: (start, end, score) のタプル
+                min_overlap_seconds: 重複と判定する最小秒数
+            
+            Returns:
+                bool: 重複している場合True
+            """
+            start1, end1, _ = seg1
+            start2, end2, _ = seg2
+            
+            # 重複区間を計算
+            overlap_start = max(start1, start2)
+            overlap_end = min(end1, end2)
+            overlap_duration = max(0, overlap_end - overlap_start)
+            
+            return overlap_duration >= min_overlap_seconds
+        
+        # 重複を除去しながら見どころを選択
+        deduplicated_segments = []
+        for segment in candidate_segments:
+            # 既に選択されたセグメントと重複していないかチェック
+            has_duplicate = False
+            for selected in deduplicated_segments:
+                if has_overlap(segment, selected, min_overlap_seconds=30):
+                    has_duplicate = True
+                    print(f"⏭️ 重複セグメントをスキップ: {segment[0]}-{segment[1]}秒（既存: {selected[0]}-{selected[1]}秒）")
+                    break
+            
+            if not has_duplicate:
+                deduplicated_segments.append(segment)
+        
+        print(f"✓ 重複除去: {len(candidate_segments)}個 → {len(deduplicated_segments)}個")
+        
         # 目標時間に収まるように選択
         selected_segments = []
         total_duration = 0
         
-        for start, end, score in candidate_segments:
+        for start, end, score in deduplicated_segments:
             segment_duration = end - start
             
             # 目標時間を超える場合はセグメントを短縮
