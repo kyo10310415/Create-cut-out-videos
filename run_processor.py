@@ -460,11 +460,19 @@ class YouTubeClipperPipeline:
                         self.logger.info(f"✓ Gemini APIで見どころを検出: {len(gemini_highlights)}個")
                         print(f"✓ Gemini APIで見どころを検出: {len(gemini_highlights)}個")
                         
+                        # 開始2分間を除外（Geminiプロンプトにも指示済みだが、念のため再フィルタ）
+                        skip_start_seconds = int(os.getenv('SKIP_START_SECONDS', '120'))
+                        
                         # Geminiのフォーマットを統一
                         highlights = [
                             (h['start'], h['end'], h['score'])
                             for h in gemini_highlights
+                            if h['start'] >= skip_start_seconds  # 開始時刻が120秒以降のみ
                         ]
+                        
+                        filtered_count = len(gemini_highlights) - len(highlights)
+                        if filtered_count > 0:
+                            print(f"⏭️ 開始 {skip_start_seconds}秒以内の見どころを {filtered_count}個 除外")
                     else:
                         raise ValueError("Gemini APIが空の結果を返しました")
                         
