@@ -1080,7 +1080,7 @@ def api_upload_video():
                     
                     # 音声認識で字幕を生成（結合動画のみ）
                     print(f"🎤 音声認識を開始: {combined_path}")
-                    segments = subtitle_gen.transcribe_audio(str(combined_path), model='base', language='ja')
+                    segments = subtitle_gen.transcribe_audio(str(combined_path), model='small', language='ja')
                     if segments:
                         subtitle_gen.generate_srt(segments, str(subtitle_path))
                         print(f"✅ 字幕生成完了: {subtitle_path}")

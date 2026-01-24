@@ -97,7 +97,8 @@ class SubtitleGenerator:
                 video_file,
                 language=language,
                 verbose=False,
-                word_timestamps=True  # 単語レベルのタイムスタンプ
+                word_timestamps=False,  # 単語レベルではなくセグメントレベルのタイムスタンプ
+                fp16=False  # CPU環境での安定性向上
             )
             
             # セグメント情報を整形

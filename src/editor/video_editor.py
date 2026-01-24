@@ -187,6 +187,7 @@ class VideoEditor:
             else:
                 # 再エンコードで確実に結合（品質と安定性を優先）
                 print(f"🎬 FFmpeg で結合を開始（再エンコードモード）...")
+                # 音声トラックの有無に関わらず処理できるようにする
                 (
                     ffmpeg
                     .input(concat_file, format='concat', safe=0)
@@ -198,6 +199,7 @@ class VideoEditor:
                         audio_bitrate=self.audio_bitrate,
                         preset='fast'  # fast で高速化
                     )
+                    .global_args('-ignore_unknown')  # 不明なストリームを無視
                     .overwrite_output()
                     .run(capture_stdout=True, capture_stderr=True, quiet=True)
                 )
@@ -563,7 +565,7 @@ class VideoEditor:
             if background_image and os.path.exists(background_image):
                 # 背景画像を使用
                 print(f"📷 背景画像を使用: {background_image}")
-                subprocess.run([
+                cmd = [
                     'ffmpeg',
                     '-loop', '1',
                     '-i', background_image,
@@ -583,8 +585,8 @@ class VideoEditor:
                     f"line_spacing=20:"
                     f"shadowcolor=black@0.8:"
                     f"shadowx=6:"
-                    f"shadowy=6",
-                    '-map', '0:v',
+                    f"shadowy=6[v]",
+                    '-map', '[v]',  # フィルタ出力をマッピング
                     '-map', '1:a',
                     '-t', str(duration),
                     '-c:v', 'libx264',
@@ -592,11 +594,16 @@ class VideoEditor:
                     '-pix_fmt', 'yuv420p',
                     '-y',
                     output_file
-                ], capture_output=True, check=True)
+                ]
+                print(f"🎬 FFmpegコマンド実行中...")
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                if result.returncode != 0:
+                    print(f"❌ FFmpegエラー: {result.stderr}")
+                    raise Exception(f"FFmpeg failed: {result.stderr}")
             else:
                 # グラデーション背景を使用
                 print(f"🎨 グラデーション背景を使用")
-                subprocess.run([
+                cmd = [
                     'ffmpeg',
                     '-f', 'lavfi',
                     '-i', f'color=c=#667eea:s={resolution}:d={duration}:r={fps}',
@@ -618,8 +625,8 @@ class VideoEditor:
                     f"line_spacing=20:"
                     f"shadowcolor=black@0.8:"
                     f"shadowx=6:"
-                    f"shadowy=6",
-                    '-map', '[bg]',
+                    f"shadowy=6[v]",
+                    '-map', '[v]',  # フィルタ出力をマッピング
                     '-map', '2:a',
                     '-t', str(duration),
                     '-c:v', 'libx264',
@@ -627,7 +634,12 @@ class VideoEditor:
                     '-pix_fmt', 'yuv420p',
                     '-y',
                     output_file
-                ], capture_output=True, check=True)
+                ]
+                print(f"🎬 FFmpegコマンド実行中...")
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                if result.returncode != 0:
+                    print(f"❌ FFmpegエラー: {result.stderr}")
+                    raise Exception(f"FFmpeg failed: {result.stderr}")
             
             if os.path.exists(output_file):
                 print(f"✅ オープニングタイトル生成完了: {output_file}")
