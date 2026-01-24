@@ -3,10 +3,13 @@ FROM python:3.11-slim
 # 作業ディレクトリを設定
 WORKDIR /app
 
-# システムパッケージを更新してFFmpegをインストール
+# システムパッケージを更新してFFmpegと日本語フォントをインストール
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     ffmpeg \
+    fonts-noto-cjk \
+    fontconfig \
+    && fc-cache -fv \
     && rm -rf /var/lib/apt/lists/*
 
 # requirements.txtをコピーして依存関係をインストール

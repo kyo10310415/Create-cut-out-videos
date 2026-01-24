@@ -15,7 +15,7 @@ class SubtitleGenerator:
     
     def __init__(
         self,
-        font_file: str = 'NotoSansJP-Bold.ttf',
+        font_file: Optional[str] = None,
         font_size: int = 48,
         font_color: str = 'white',
         outline_color: str = 'black',
@@ -27,7 +27,7 @@ class SubtitleGenerator:
         初期化
         
         Args:
-            font_file: フォントファイル名（システムフォントまたはパス）
+            font_file: フォントファイル名（Noneの場合は自動検出）
             font_size: フォントサイズ
             font_color: 文字色
             outline_color: 縁取り色
@@ -35,6 +35,25 @@ class SubtitleGenerator:
             bg_opacity: 背景の不透明度（0.0-1.0）
             position: 表示位置（'top', 'center', 'bottom'）
         """
+        # フォントパスを自動検出
+        if font_file is None:
+            font_paths = [
+                '/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc',  # Debian系 (fonts-noto-cjk)
+                '/usr/share/fonts/opentype/noto/NotoSansCJKjp-Bold.otf',  # 日本語専用
+                '/app/assets/fonts/NotoSansJP-Bold.ttf',  # プロジェクト内 (Docker)
+                '/home/user/webapp/assets/fonts/NotoSansJP-Bold.ttf',  # プロジェクト内 (開発環境)
+                '/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc',  # 代替パス
+            ]
+            font_file = None
+            for path in font_paths:
+                if os.path.exists(path):
+                    font_file = path
+                    print(f"✅ 字幕フォントを検出: {path}")
+                    break
+            if font_file is None:
+                print(f"⚠️ 日本語フォントが見つかりません。デフォルトフォントを使用します。")
+                font_file = 'NotoSansJP-Bold.ttf'  # フォールバック
+        
         self.font_file = font_file
         self.font_size = font_size
         self.font_color = font_color

@@ -514,18 +514,24 @@ class VideoEditor:
         try:
             print(f"🎬 オープニングタイトルを生成中: {title}")
             
-            # フォントパスを設定（プロジェクト内のフォントを優先）
+            # フォントパスを設定（Dockerコンテナ内のシステムフォントを優先）
             font_paths = [
-                '/home/user/webapp/assets/fonts/NotoSansJP-Bold.ttf',  # プロジェクト内
-                '/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc',  # システムフォント
+                '/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc',  # Debian系 (fonts-noto-cjk)
+                '/usr/share/fonts/opentype/noto/NotoSansCJKjp-Bold.otf',  # 日本語専用
+                '/app/assets/fonts/NotoSansJP-Bold.ttf',  # プロジェクト内 (Docker)
+                '/home/user/webapp/assets/fonts/NotoSansJP-Bold.ttf',  # プロジェクト内 (開発環境)
                 '/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc',  # 代替パス
             ]
             fontfile = None
             for path in font_paths:
                 if os.path.exists(path):
                     fontfile = path
+                    print(f"✅ フォントを検出: {path}")
                     break
             if not fontfile:
+                print(f"❌ 日本語フォントが見つかりません。検索パス:")
+                for path in font_paths:
+                    print(f"   - {path} (存在: {os.path.exists(path)})")
                 raise Exception("日本語フォントが見つかりません")
             
             # 長いタイトルを自動改行（25文字ごと、区切り文字優先）
