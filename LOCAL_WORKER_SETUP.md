@@ -81,6 +81,7 @@ RENDER_API_URL=https://create-cut-out-videos.onrender.com
 
 # ワーカーID（任意の名前）
 WORKER_ID=local-worker-1
+CLIPPER_WORKER_TOKEN=<Web側の同じworker IDに割り当てた32文字以上のランダム値>
 
 # ローカルディレクトリ
 DOWNLOAD_DIR=./downloads

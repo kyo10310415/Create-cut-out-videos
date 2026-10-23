@@ -24,7 +24,16 @@ services:
     plan: starter
     dockerfilePath: ./Dockerfile
     dockerContext: .
+    healthCheckPath: /health
     envVars:
+      - key: CLIPPER_ADMIN_USERNAME
+        sync: false
+      - key: CLIPPER_ADMIN_PASSWORD
+        sync: false
+      - key: CLIPPER_PUBLIC_ORIGIN
+        sync: false
+      - key: CLIPPER_WORKER_TOKENS
+        sync: false
       - key: YOUTUBE_API_KEY
         sync: false
       - key: GOOGLE_OAUTH_CREDENTIALS

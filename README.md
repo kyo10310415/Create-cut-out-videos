@@ -1,5 +1,30 @@
 # YouTube 切り抜き動画自動生成システム
 
+## ダッシュボードとローカルワーカーの認証（SEC-006）
+
+Webサービスは起動時に次の環境変数を検証します。未設定・不正な設定では起動を拒否します。秘密をソースやログへ書かず、HTTPSで利用してください。
+
+| 変数 | 内容 |
+|---|---|
+| `CLIPPER_ADMIN_USERNAME` | 管理画面のBasic認証利用者名（英数字・`_.@-`、1〜100文字） |
+| `CLIPPER_ADMIN_PASSWORD` | 空白なしの独立したランダム値、32〜512文字 |
+| `CLIPPER_PUBLIC_ORIGIN` | 実際のHTTPS origin。例：`https://create-cut-out-videos.onrender.com` |
+| `CLIPPER_WORKER_TOKENS` | worker IDと個別秘密のJSONオブジェクト。例：`{"local-worker-1":"<32文字以上のランダム値>"}`（例をそのまま使わない） |
+
+ワーカーごとに異なる秘密を用意し、管理者パスワードとも分離してください。`/health`のGET/HEADだけ公開し、それ以外の画面・既存業務APIは管理者Basic認証を要求します。管理者による変更APIには`Origin: <CLIPPER_PUBLIC_ORIGIN>`も必要です（同一originの通常ブラウザ操作は自動送信）。既存の外部自動化が業務APIを呼ぶ場合も、この変更に合わせて認証とOriginを追加する必要があります。
+
+ローカルの`.env.worker`には`WORKER_ID`と、そのIDに対応する`CLIPPER_WORKER_TOKEN`を設定します。`CLIPPER_WORKER_TOKENS`全体や管理者資格情報をワーカーへ配布しないでください。更新した`local_worker.py`を使用し、旧ワーカーは配備前に停止してください。
+
+- タスク取得は**POST** `/api/tasks/pending`（JSONのworker_id、Bearer認証）。GETではタスクを取り出しません。
+- worker IDは検証したBearer鍵から決定し、bodyの別IDは拒否します。ワーカー鍵はclaim/complete/errorだけで利用でき、UI・一覧・作成には利用できません。
+- タスクの取得とprocessing遷移は同じロック内で実施します。完了・失敗報告はprocessing状態かつ当該workerのタスクだけ許可し、再送・他workerの更新を拒否します。
+- タスクキューは既存どおりプロセス内メモリです。ロックは単一プロセス内だけで有効です。複数Webプロセスや再起動時のジョブ永続化・再配送は別途設計が必要です。
+- Web/worker設定を揃え、キューが空のときに切り替えます。公開healthと匿名API拒否、管理者操作、正常claim/完了をテスト用タスクで確認してください。本番タスクを実行する検証は所有者の管理下で行います。
+
+隔離した認証テスト：Flaskが導入された環境で`python -m unittest discover -s tests -v`。動画・AI・Google・実DBへ接続せず、HTTP待受けなしで実行できます。
+
+切戻しで匿名タスクAPIを再公開しないでください。必要なら公開アクセスを先に制限し、旧版に戻す場合も認証保護を維持します。
+
 YouTubeの配信動画から見どころを自動検出し、10分程度のハイライト動画を生成するシステムです。
 
 ## 📋 プロジェクト概要

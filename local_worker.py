@@ -26,6 +26,17 @@ load_dotenv('.env.worker')
 # 設定
 RENDER_API_URL = os.getenv('RENDER_API_URL', 'https://create-cut-out-videos.onrender.com')
 WORKER_ID = os.getenv('WORKER_ID', 'local-worker-1')
+WORKER_TOKEN = os.getenv('CLIPPER_WORKER_TOKEN', '')
+if len(WORKER_TOKEN) < 32 or any(char.isspace() for char in WORKER_TOKEN):
+    raise ValueError('CLIPPER_WORKER_TOKEN must be configured (at least 32 characters)')
+from urllib.parse import urlsplit
+_worker_origin = urlsplit(RENDER_API_URL)
+if (_worker_origin.username or _worker_origin.password or _worker_origin.query or _worker_origin.fragment
+        or _worker_origin.path not in ('', '/') or not _worker_origin.hostname
+        or (_worker_origin.scheme != 'https' and not (_worker_origin.scheme == 'http'
+            and _worker_origin.hostname in ('localhost', '127.0.0.1', '::1')))):
+    raise ValueError('RENDER_API_URL must be an HTTPS origin')
+WORKER_HEADERS = {'Authorization': 'Bearer ' + WORKER_TOKEN}
 POLLING_INTERVAL = int(os.getenv('POLLING_INTERVAL', 30))
 MAX_WORKERS = int(os.getenv('MAX_WORKERS', 1))
 
@@ -61,8 +72,8 @@ def get_pending_task():
     """Renderから処理待ちタスクを取得"""
     try:
         url = f"{RENDER_API_URL}/api/tasks/pending"
-        params = {'worker_id': WORKER_ID}
-        response = requests.get(url, params=params, timeout=30)
+        data = {'worker_id': WORKER_ID}
+        response = requests.post(url, json=data, headers=WORKER_HEADERS, timeout=30, allow_redirects=False)
         
         if response.status_code == 200:
             data = response.json()
@@ -237,7 +248,7 @@ def notify_completion(task_id, output_file):
             'output_file': output_file,
             'worker_id': WORKER_ID
         }
-        response = requests.post(url, json=data, timeout=10)
+        response = requests.post(url, json=data, headers=WORKER_HEADERS, timeout=10, allow_redirects=False)
         
         if response.status_code == 200:
             logger.info(f"✅ 完了通知送信成功")
@@ -257,7 +268,7 @@ def notify_error(task_id, error_message):
             'error': error_message,
             'worker_id': WORKER_ID
         }
-        response = requests.post(url, json=data, timeout=10)
+        response = requests.post(url, json=data, headers=WORKER_HEADERS, timeout=10, allow_redirects=False)
         
         if response.status_code == 200:
             logger.info(f"✅ エラー通知送信成功")
