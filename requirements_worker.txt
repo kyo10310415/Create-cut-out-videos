@@ -16,11 +16,11 @@ torchaudio
 pysrt==1.1.2
 
 # Image processing (for thumbnails and text overlay)
-Pillow>=10.1.0
+Pillow>=13.0.0
 
 # Utilities
-python-dotenv==1.0.0
-requests>=2.32.3
+python-dotenv==1.2.2
+requests>=2.33.0
 tqdm>=4.67.1
 
 # Google Drive API
